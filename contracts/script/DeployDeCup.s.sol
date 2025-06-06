@@ -2,14 +2,13 @@
 pragma solidity ^0.8.29;
 
 import {Script} from "forge-std/Script.sol";
-import {DeCupNft} from "src/DeCupNft.sol";
+import {DeCup} from "src/DeCup.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
-contract DeployDeCupNft is Script {
-
+contract DeployDeCup is Script {
     function run() public {
         string memory svgDeCup = vm.readFile("./img/decup.svg");
-        deployDeCupNft(svgDeCup);
+        deployDeCup(svgToImageURI(svgDeCup));
     }
 
     function svgToImageURI(string memory _svg) public pure returns (string memory) {
@@ -18,8 +17,10 @@ contract DeployDeCupNft is Script {
         return string.concat(baseURI, svgBase64Encoded);
     }
 
-    function deployDeCupNft(string memory _svgDeCup) public returns(DeCupNft){
-        DeCupNft deploy = new DeCupNft(_svgDeCup);
+    function deployDeCup(string memory _svgDeCup) public returns (DeCup) {
+        vm.startBroadcast();
+        DeCup deploy = new DeCup(_svgDeCup);
+        vm.stopBroadcast();
         return deploy;
     }
 }
