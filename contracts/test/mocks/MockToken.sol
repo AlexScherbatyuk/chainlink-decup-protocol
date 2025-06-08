@@ -13,3 +13,33 @@ contract MockToken is ERC20 {
         _mint(msg.sender, initialSupply);
     }
 }
+
+/**
+ * @title FailingMockToken
+ * @notice A mock ERC20 token that can be configured to fail transfers for testing purposes
+ */
+contract FailingMockToken is ERC20 {
+    bool public shouldFailTransfer = false;
+
+    constructor(uint256 initialSupply) ERC20("FailingMockToken", "FMT") {
+        _mint(msg.sender, initialSupply);
+    }
+
+    function setShouldFailTransfer(bool _shouldFail) external {
+        shouldFailTransfer = _shouldFail;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+        if (shouldFailTransfer) {
+            return false;
+        }
+        return super.transferFrom(from, to, amount);
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        if (shouldFailTransfer) {
+            return false;
+        }
+        return super.transfer(to, amount);
+    }
+}

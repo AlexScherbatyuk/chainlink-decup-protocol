@@ -19,7 +19,10 @@ contract DeployDeCup is Script {
 
     function deployDeCup(string memory _svgDeCup) public returns (DeCup) {
         vm.startBroadcast();
-        DeCup deploy = new DeCup(_svgDeCup);
+        // Deploy with empty arrays for tokens and price feeds - can be configured later
+        address[] memory tokenAddresses = new address[](0);
+        address[] memory priceFeedAddresses = new address[](0);
+        DeCup deploy = new DeCup(_svgDeCup, tokenAddresses, priceFeedAddresses);
         vm.stopBroadcast();
         return deploy;
     }

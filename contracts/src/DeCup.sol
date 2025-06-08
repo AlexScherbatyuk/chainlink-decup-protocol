@@ -16,6 +16,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 
 /**
  * @title DeCup
@@ -26,37 +27,42 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
  * - Chainlink Price Feeds to calculate NFT price based on assets market prices,
  * - Chainlink CCIP to papulate transfer and burn functionalities cros-chain.
  */
-contract DeCup is ERC721, ReentrancyGuard {
+contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     // Errors
     error DeCup__AmountMustBeGreaterThanZero();
     error DeCup__TransferFailed();
     error DeCup__InsufficientBalance();
     error DeCup__NotAllowedToken();
     error DeCup__TokenAddressesAndPriceFeedAddressesMusBeSameLength();
+    error DeCup__TokenAddressesAndAmountsMusBeSameLength();
     error DeCup__ApprovalFailed();
+    error DeCup__ZeroAddress();
+    error DeCup__TokenDoesNotExist();
+    error DeCup__AllowedTokenAddressesMustNotBeEmpty();
+    error DeCup__PriceFeedAddressesMustNotBeEmpty();
 
     // Structure to track deposited assets
-    struct Asset {
-        address token; // Address of the token (address(0) for native currency)
-        string symbol; // Token Symbol (ETH, USDC, etc)
-        uint256 amount; // Amount of tokens/native currency deposited
-        uint256 timestamp; // When the asset was deposited
-    }
+    // struct Asset {
+    //     address token; // Address of the token (address(0) for native currency)
+    //     string symbol; // Token Symbol (ETH, USDC, etc)
+    //     uint256 amount; // Amount of tokens/native currency deposited
+    //     uint256 timestamp; // When the asset was deposited
+    // }
 
     // State variables
     uint256 private s_tokenCounter;
     string private s_svgImageUri;
 
-    mapping(uint256 tokenId => Asset[] assets) private s_tokenIdToAssets;
-    mapping(address token => address priceFeed) private s_tokenToPriceFeed;
+    mapping(uint256 tokenId => address[] assets) private s_tokenIdToAssets;
+    mapping(address tokenAddress => address priceFeed) private s_tokenToPriceFeed;
     mapping(uint256 tokenId => mapping(address token => uint256 amount)) private s_collateralDeposited;
     /// may be use mapping instead pf struct ???
 
     // Events
-    event NativeReceived(address indexed from, uint256 amount);
-    event ERC20Received(address indexed from, address indexed token, uint256 amount);
-    event NativeWithdrawn(address indexed to, uint256 amount);
-    event ERC20Withdrawn(address indexed to, address indexed token, uint256 amount);
+    event DepositeNativeCurrency(address indexed from, uint256 amount);
+    event DepositeERC20Token(address indexed from, address indexed token, uint256 amount);
+    event WithdrawNativeCurrency(address indexed to, uint256 amount);
+    event WithdrawERC20Token(address indexed to, address indexed token, uint256 amount);
 
     // Modifiers
     modifier moreThanZero(uint256 amount) {
@@ -66,17 +72,24 @@ contract DeCup is ERC721, ReentrancyGuard {
         _;
     }
 
-    modifier isAllowedToken(address tokenAddress) {
-        if (s_tokenToPriceFeed[tokenAddress] == address(0)) {
-            revert DeCup__NotAllowedToken();
-        }
-        _;
-    }
-
     // Functions
+    /**
+     * @notice Constructor to initialize the DeCup NFT contract with supported tokens and price feeds
+     * @param _baseSvgImageUri Base URI for SVG images associated with NFTs
+     * @param tokenAddresses Array of ERC20 token addresses that can be used as collateral
+     * @param priceFeedAddresses Array of Chainlink price feed addresses corresponding to each token
+     */
     constructor(string memory _baseSvgImageUri, address[] memory tokenAddresses, address[] memory priceFeedAddresses)
         ERC721("DeCup", "DCT")
     {
+        if (tokenAddresses.length == 0) {
+            revert DeCup__AllowedTokenAddressesMustNotBeEmpty();
+        }
+
+        if (priceFeedAddresses.length == 0) {
+            revert DeCup__PriceFeedAddressesMustNotBeEmpty();
+        }
+
         if (tokenAddresses.length != priceFeedAddresses.length) {
             revert DeCup__TokenAddressesAndPriceFeedAddressesMusBeSameLength();
         }
@@ -90,158 +103,156 @@ contract DeCup is ERC721, ReentrancyGuard {
     }
 
     /**
-     * Receive native currency (ETH)
+     * @notice Function to deposit native currency, and mint a collateralized with native currency NFT
      */
     receive() external payable moreThanZero(msg.value) nonReentrant {
+        // Check (in modifiers)
+
         // Effect
-        Asset[] memory assets = new Asset[](1);
-        assets[0] = Asset({
-            token: address(0), // address(0) represents native currency
-            symbol: "ETH",
-            amount: msg.value,
-            timestamp: block.timestamp
-        });
+        uint256 tokenId = s_tokenCounter;
+        emit DepositeNativeCurrency(msg.sender, msg.value);
+        s_collateralDeposited[tokenId][address(0)] += msg.value;
+        s_tokenIdToAssets[tokenId].push(address(0));
+        _safeMint(msg.sender, tokenId);
+        s_tokenCounter++;
 
-        emit NativeReceived(msg.sender, msg.value);
-
-        // Interact
-        _mintNft(assets);
+        //interact
     }
 
+    // External functions
+
     /**
-     * Function to receive ERC20 tokens
-     * @param tokenAddress  - ERC20 contract address
-     * @param amount - deposit amount
+     * @notice Function to deposit a single ERC20 token and mint an NFT collateralized by this token
+     * @param tokenAddress The ERC20 token contract address to deposit (must be a supported token with price feed)
+     * @param amount The amount of tokens to deposit (must be greater than 0)
+     * @dev This function will transfer the specified amount of tokens from the caller to this contract
+     * and mint a new NFT representing the deposited collateral. The caller must have approved this contract
+     * to spend their tokens before calling this function.
      */
-    function depositeERC20(address tokenAddress, uint256 amount)
+    function depositeSingleTokenAndMint(address tokenAddress, uint256 amount)
         external
         payable
         moreThanZero(amount)
-        isAllowedToken(tokenAddress)
         nonReentrant
     {
-        // Check (in modifiers)
-        // Effect
-        emit ERC20Received(msg.sender, tokenAddress, amount);
+        // Checkss
+        if (s_tokenToPriceFeed[tokenAddress] == address(0)) {
+            revert DeCup__NotAllowedToken();
+        }
+        // Effects
+        uint256 tokenId = s_tokenCounter;
+        emit DepositeERC20Token(msg.sender, tokenAddress, amount);
+        s_collateralDeposited[tokenId][tokenAddress] += amount;
+        s_tokenIdToAssets[tokenId].push(tokenAddress);
+        _mintAndIncreaseCounter(msg.sender, tokenId);
 
-        //  Asset[] memory assets = new Asset[](1);
-        //  assets[0] = Asset({
-        //     token: tokenAddress, // address(0) represents native currency
-        //     amount: msg.value,
-        //     timestamp: block.timestamp
-        // });
-
-
-        s_collateralDeposited[s_tokenCounter][tokenAddress] = amount;
-        _safeMint(msg.sender, s_tokenCounter);
-        s_tokenCounter++;
-    }
-
-        // Interact
+        // Interactionss
         (bool success) = IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
         if (!success) {
             revert DeCup__TransferFailed();
         }
-    }
-
-    /* Function to receive ERC20 tokens
-     * @param tokenAddresses  - ERC20 contract address
-     * @param amountss - deposit amount
-     */
-    function depositeMultipleAssets(address[] tokenAddresses, uint256[] amounts) external payable {
-        // Check (in modifiers)
-        if (msg.value > 0) {
-            emit NativeReceived(msg.sender, amount);
-        }
-        // Effect
-        emit ERC20Received(msg.sender, tokenAddress, amount);
-
-        Asset[] memory assets = new Asset[](1);
-        assets[0] = Asset({
-            token: address(0), // address(0) represents native currency
-            symbol: "ETH",
-            amount: msg.value,
-            timestamp: block.timestamp
-        });
-
-        // Interact
-        (bool success) = IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
-        if (!success) {
-            revert DeCup__TransferFailed();
-        }
-
-        // Interact
-        //_mintNft(assets);
     }
 
     /**
-     * Function to withdraw native currency
+     * @notice Function to deposit multiple ERC20 tokens and native currency, minting a single NFT collateralized by all assets
+     * @param tokenAddresses Array of ERC20 token contract addresses to deposit as collateral
+     * @param amounts Array of amounts to deposit for each corresponding token address
+     * @dev Can also accept native currency via msg.value. If msg.value > 0, native currency will be included as collateral.
+     * All token amounts must be greater than 0. Token addresses and amounts arrays must be same length.
+     */
+    function depositeMultipleAssetsAndMint(address[] memory tokenAddresses, uint256[] memory amounts)
+        external
+        payable
+        nonReentrant
+    {
+        // Checks (in modifiers)
+        if (tokenAddresses.length != amounts.length) {
+            revert DeCup__TokenAddressesAndAmountsMusBeSameLength();
+        }
+
+        // Effects / Interctions
+        uint256 tokenId = s_tokenCounter;
+
+        if (msg.value > 0) {
+            emit DepositeNativeCurrency(msg.sender, msg.value);
+            s_collateralDeposited[tokenId][address(0)] += msg.value;
+            s_tokenIdToAssets[tokenId].push(address(0));
+        }
+
+        _mintAndIncreaseCounter(msg.sender, tokenId);
+
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
+            if (amounts[i] == 0) {
+                revert DeCup__AmountMustBeGreaterThanZero();
+            }
+
+            emit DepositeERC20Token(msg.sender, tokenAddresses[i], amounts[i]);
+            s_collateralDeposited[tokenId][tokenAddresses[i]] += amounts[i];
+            s_tokenIdToAssets[tokenId].push(tokenAddresses[i]);
+
+            (bool success) = IERC20(tokenAddresses[i]).transferFrom(msg.sender, address(this), amounts[i]);
+            if (!success) {
+                revert DeCup__TransferFailed();
+            }
+        }
+    }
+
+    // Public functionss
+    function burn(uint256 tokenId) public override nonReentrant {
+        address[] memory assets = s_tokenIdToAssets[tokenId];
+        if (assets.length == 0) {
+            revert DeCup__TokenDoesNotExist();
+        }
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (assets[i] == address(0)) {
+                _withdrawNativeCurrency(s_collateralDeposited[tokenId][assets[i]]);
+            } else {
+                _withdrawSingleToken(assets[i], s_collateralDeposited[tokenId][assets[i]]);
+            }
+        }
+    }
+
+    // Private functionss
+
+    function _mintAndIncreaseCounter(address to, uint256 tokenId) private {
+        _safeMint(to, tokenId);
+        s_tokenCounter++;
+    }
+    /**
+     * @notice Function to withdraw native currency
      * @param amount - withdraw amount
      */
-    function withdrawNative(uint256 amount) external {
-        require(amount > 0, DeCup__AmountMustBeGreaterThanZero());
-        require(address(this).balance >= amount, DeCup__InsufficientBalance());
+
+    function _withdrawNativeCurrency(uint256 amount) private {
+        if (address(this).balance < amount) {
+            revert DeCup__InsufficientBalance();
+        }
+
+        emit WithdrawNativeCurrency(msg.sender, amount);
 
         (bool success,) = msg.sender.call{value: amount}("");
-        require(success, DeCup__TransferFailed());
-
-        emit NativeWithdrawn(msg.sender, amount);
+        if (!success) {
+            revert DeCup__TransferFailed();
+        }
     }
 
     /**
-     * Function to withdraw ERC20 tokens
-     * @param token  - ERC20 contract address
-     * @param amount - withdraw amount
+     * @notice Function to withdraw a single ERC20 token
+     * @param tokenAddress  - ERC20 contract address
+     * @param amount - Amount of tokens to withdraw
      */
-    function withdrawERC20(address token, uint256 amount) external {
-        //require(amount > 0, DeCup__AmountMustBeGreaterThanZero());
-        if (amount <= 0) {
-            revert DeCup__AmountMustBeGreaterThanZero();
+    function _withdrawSingleToken(address tokenAddress, uint256 amount) private moreThanZero(amount) {
+        emit WithdrawERC20Token(msg.sender, tokenAddress, amount);
+
+        if (!IERC20(tokenAddress).transfer(msg.sender, amount)) {
+            revert DeCup__TransferFailed();
         }
-
-        require(IERC20(token).balanceOf(address(this)) >= amount, DeCup__InsufficientBalance());
-        require(IERC20(token).transfer(msg.sender, amount), DeCup__TransferFailed());
-
-        emit ERC20Withdrawn(msg.sender, token, amount);
     }
 
-    function tokenURI(uint256 _tokenId) public view override returns (string memory) {
-        string memory imageURI = s_svgImageUri;
-        Asset[] memory assets = s_tokenIdToAssets[_tokenId];
-        bytes memory traits = "";
-
-        for (uint256 index = 0; index < assets.length; index++) {
-            traits = abi.encodePacked(
-                traits, ',{"trait_type":"', assets[index].symbol, '","value":"', assets[index].amount, '"}'
-            );
-        }
-
-        return string(
-            abi.encodePacked(
-                _baseURI(),
-                Base64.encode(
-                    bytes(
-                        abi.encodePacked(
-                            '{"name":"',
-                            name(),
-                            '","description":"Decentralised Cup of Assets", "attributes": [',
-                            traits,
-                            '],"image":"',
-                            imageURI,
-                            '"}'
-                        )
-                    )
-                )
-            )
-        );
-    }
-
-    function _mintNft( memory _assets) internal {
-                s_collateralDeposited[[s_tokenCounter] = _assets;
-        _safeMint(msg.sender, s_tokenCounter);
-        s_tokenCounter++;
-    }
-
+    /**
+     * @notice Returns the base URI for token metadata in base64 JSON format
+     */
     function _baseURI() internal pure override returns (string memory) {
         return "data:application/json;base64,";
     }
