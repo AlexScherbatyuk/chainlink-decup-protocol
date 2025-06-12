@@ -110,6 +110,10 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
 
     /**
      * @notice Function to deposit native currency, and mint a collateralized with native currency NFT
+     * @dev This function is called when native currency is sent to the contract
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Emits DepositNativeCurrency event on successful deposit
      */
     receive() external payable moreThanZero(msg.value) nonReentrant {
         // Check (in modifiers)
@@ -130,8 +134,10 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @param tokenAddress The ERC20 token contract address to deposit (must be a supported token with price feed)
      * @param amount The amount of tokens to deposit (must be greater than 0)
      * @dev This function will transfer the specified amount of tokens from the caller to this contract
-     * and mint a new NFT representing the deposited collateral. The caller must have approved this contract
-     * to spend their tokens before calling this function.
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Emits DepositERC20Token event on successful deposit
+     * @dev The caller must have approved this contract to spend their tokens before calling this function
      */
     function depositSingleTokenAndMint(address tokenAddress, uint256 amount)
         external
@@ -161,8 +167,12 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @notice Function to deposit multiple ERC20 tokens and native currency, minting a single NFT collateralized by all assets
      * @param tokenAddresses Array of ERC20 token contract addresses to deposit as collateral
      * @param amounts Array of amounts to deposit for each corresponding token address
-     * @dev Can also accept native currency via msg.value. If msg.value > 0, native currency will be included as collateral.
-     * All token amounts must be greater than 0. Token addresses and amounts arrays must be same length.
+     * @dev Can also accept native currency via msg.value. If msg.value > 0, native currency will be included as collateral
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Emits DepositNativeCurrency and DepositERC20Token events for each successful deposit
+     * @dev All token amounts must be greater than 0. Token addresses and amounts arrays must be same length
+     * @dev The caller must have approved this contract to spend their tokens before calling this function
      */
     function depositMultipleAssetsAndMint(address[] memory tokenAddresses, uint256[] memory amounts)
         external
@@ -208,6 +218,11 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     /**
      * @notice Burns the NFT and withdraws all collateral assets to the caller
      * @param tokenId The ID of the NFT to burn and withdraw collateral from
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Withdraws both native currency and ERC20 tokens if they were deposited as collateral
+     * @dev Emits WithdrawNativeCurrency and WithdrawERC20Token events for each successful withdrawal
+     * @dev Reverts if the token does not exist or if any transfer fails
      */
     function burn(uint256 tokenId) public override nonReentrant {
         address[] memory assets = s_tokenIdToAssets[tokenId];
@@ -217,9 +232,9 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
 
         for (uint256 i = 0; i < assets.length; i++) {
             if (assets[i] == address(0)) {
-                _withdrawNativeCurrency(s_collateralDeposited[tokenId][assets[i]]);
+                _withdrawNativeCurrency(tokenId, s_collateralDeposited[tokenId][assets[i]]);
             } else {
-                _withdrawSingleToken(assets[i], s_collateralDeposited[tokenId][assets[i]]);
+                _withdrawSingleToken(tokenId, assets[i], s_collateralDeposited[tokenId][assets[i]]);
             }
         }
     }
@@ -232,6 +247,8 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @notice Mints a new token to the specified address and increments the token counter
      * @param to The address to mint the token to
      * @param tokenId The ID of the token to mint
+     * @dev Internal function used by deposit functions to mint NFTs
+     * @dev Uses _safeMint to ensure the recipient can handle ERC721 tokens
      */
     function _mintAndIncreaseCounter(address to, uint256 tokenId) private {
         _safeMint(to, tokenId);
@@ -240,13 +257,19 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
 
     /**
      * @notice Function to withdraw native currency
-     * @param amount - withdraw amount
+     * @param tokenId The ID of the NFT associated with the withdrawal
+     * @param amount The amount of native currency to withdraw
+     * @dev Internal function used by burn function to withdraw native currency
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Emits WithdrawNativeCurrency event on successful withdrawal
+     * @dev Reverts if contract has insufficient balance or if transfer fails
      */
-    function _withdrawNativeCurrency(uint256 amount) private {
+    function _withdrawNativeCurrency(uint256 tokenId, uint256 amount) private {
         if (address(this).balance < amount) {
             revert DeCup__InsufficientBalance();
         }
 
+        s_collateralDeposited[tokenId][address(0)] -= amount;
         emit WithdrawNativeCurrency(msg.sender, amount);
 
         (bool success,) = msg.sender.call{value: amount}("");
@@ -257,12 +280,19 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
 
     /**
      * @notice Function to withdraw a single ERC20 token
-     * @param tokenAddress  - ERC20 contract address
-     * @param amount - Amount of tokens to withdraw
+     * @param tokenId The ID of the NFT associated with the withdrawal
+     * @param tokenAddress The ERC20 token contract address to withdraw
+     * @param amount The amount of tokens to withdraw
+     * @dev Internal function used by burn function to withdraw ERC20 tokens
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Emits WithdrawERC20Token event on successful withdrawal
+     * @dev Reverts if amount is zero or if transfer fails
      */
-    function _withdrawSingleToken(address tokenAddress, uint256 amount) private moreThanZero(amount) {
+    function _withdrawSingleToken(uint256 tokenId, address tokenAddress, uint256 amount) private moreThanZero(amount) {
+        // Effect
+        s_collateralDeposited[tokenId][tokenAddress] -= amount;
         emit WithdrawERC20Token(msg.sender, tokenAddress, amount);
-
+        // Interaction
         if (!IERC20Metadata(tokenAddress).transfer(msg.sender, amount)) {
             revert DeCup__TransferFailed();
         }
@@ -274,6 +304,9 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
 
     /**
      * @notice Returns the base URI for token metadata in base64 JSON format
+     * @return The base URI string for token metadata
+     * @dev Overrides the ERC721 _baseURI function to return a data URI
+     * @dev Used by tokenURI function to construct the complete metadata URI
      */
     function _baseURI() internal pure override returns (string memory) {
         return "data:application/json;base64,";
@@ -288,6 +321,9 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @param tokenAddress The address of the ERC20 token to get the value for. Use address(0) for native currency
      * @param amount The amount of tokens to calculate the USD value for
      * @return The USD value of the given token amount with additional precision
+     * @dev Uses Chainlink price feeds to get real-time token prices
+     * @dev Handles both native currency and ERC20 tokens
+     * @dev Applies additional precision to maintain accuracy in calculations
      */
     function getUsdValue(address tokenAddress, uint256 amount) public view returns (uint256) {
         AggregatorV3Interface priceFeed;
@@ -306,7 +342,11 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     /**
      * @notice Returns the metadata URI for a given token ID in base64 JSON format
      * @param _tokenId The ID of the token to get metadata for
-     * @return A base64 encoded JSON string containing the token's metadata including name, description, attributes and image
+     * @return A base64 encoded JSON string containing the token's metadata
+     * @dev Overrides the ERC721 tokenURI function
+     * @dev Constructs metadata including name, description, attributes and image
+     * @dev Attributes include USD values of all collateral assets
+     * @dev Uses Base64 encoding for on-chain metadata storage
      */
     function tokenURI(uint256 _tokenId) public view override returns (string memory) {
         string memory imageURI = s_svgImageUri;
