@@ -12,14 +12,16 @@
 
 pragma solidity ^0.8.29;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 /**
- * @title DeCup
+ * @title Decentralized Cup of assets (DeCup)
  * @author Alexander Scherbatyuk
  * @notice Collaterised NFT (Cup of Assets) to be soled cross-chain as single NFT. Contract receive native currency and
  * a pre defiend number of ERC20 tokens as colleterral.
@@ -41,22 +43,18 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     error DeCup__AllowedTokenAddressesMustNotBeEmpty();
     error DeCup__PriceFeedAddressesMustNotBeEmpty();
 
-    // Structure to track deposited assets
-    // struct Asset {
-    //     address token; // Address of the token (address(0) for native currency)
-    //     string symbol; // Token Symbol (ETH, USDC, etc)
-    //     uint256 amount; // Amount of tokens/native currency deposited
-    //     uint256 timestamp; // When the asset was deposited
-    // }
-
     // State variables
     uint256 private s_tokenCounter;
     string private s_svgImageUri;
 
+    uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
+    uint256 private constant PRECISION = 1e18;
+
+    address private s_defaultPriceFeed;
+
     mapping(uint256 tokenId => address[] assets) private s_tokenIdToAssets;
-    mapping(address tokenAddress => address priceFeed) private s_tokenToPriceFeed;
+    mapping(address token => address priceFeed) private s_tokenToPriceFeed;
     mapping(uint256 tokenId => mapping(address token => uint256 amount)) private s_collateralDeposited;
-    /// may be use mapping instead pf struct ???
 
     // Events
     event DepositeNativeCurrency(address indexed from, uint256 amount);
@@ -76,31 +74,39 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     /**
      * @notice Constructor to initialize the DeCup NFT contract with supported tokens and price feeds
      * @param _baseSvgImageUri Base URI for SVG images associated with NFTs
-     * @param tokenAddresses Array of ERC20 token addresses that can be used as collateral
-     * @param priceFeedAddresses Array of Chainlink price feed addresses corresponding to each token
+     * @param _tokenAddresses Array of ERC20 token addresses that can be used as collateral
+     * @param _priceFeedAddresses Array of Chainlink price feed addresses corresponding to each token
      */
-    constructor(string memory _baseSvgImageUri, address[] memory tokenAddresses, address[] memory priceFeedAddresses)
-        ERC721("DeCup", "DCT")
-    {
-        if (tokenAddresses.length == 0) {
+    constructor(
+        string memory _baseSvgImageUri,
+        address[] memory _tokenAddresses,
+        address[] memory _priceFeedAddresses,
+        address _defaultPriceFeed
+    ) ERC721("DeCup", "DCT") {
+        if (_tokenAddresses.length == 0) {
             revert DeCup__AllowedTokenAddressesMustNotBeEmpty();
         }
 
-        if (priceFeedAddresses.length == 0) {
+        if (_priceFeedAddresses.length == 0) {
             revert DeCup__PriceFeedAddressesMustNotBeEmpty();
         }
 
-        if (tokenAddresses.length != priceFeedAddresses.length) {
+        if (_tokenAddresses.length != _priceFeedAddresses.length) {
             revert DeCup__TokenAddressesAndPriceFeedAddressesMusBeSameLength();
         }
 
-        for (uint256 i = 0; i < tokenAddresses.length; i++) {
-            s_tokenToPriceFeed[tokenAddresses[i]] = priceFeedAddresses[i];
+        for (uint256 i = 0; i < _tokenAddresses.length; i++) {
+            s_tokenToPriceFeed[_tokenAddresses[i]] = _priceFeedAddresses[i];
         }
 
         s_tokenCounter = 0;
         s_svgImageUri = _baseSvgImageUri;
+        s_defaultPriceFeed = _defaultPriceFeed;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Function to deposit native currency, and mint a collateralized with native currency NFT
@@ -118,8 +124,6 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
 
         //interact
     }
-
-    // External functions
 
     /**
      * @notice Function to deposit a single ERC20 token and mint an NFT collateralized by this token
@@ -147,7 +151,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         _mintAndIncreaseCounter(msg.sender, tokenId);
 
         // Interactionss
-        (bool success) = IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+        (bool success) = IERC20Metadata(tokenAddress).transferFrom(msg.sender, address(this), amount);
         if (!success) {
             revert DeCup__TransferFailed();
         }
@@ -190,14 +194,21 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
             s_collateralDeposited[tokenId][tokenAddresses[i]] += amounts[i];
             s_tokenIdToAssets[tokenId].push(tokenAddresses[i]);
 
-            (bool success) = IERC20(tokenAddresses[i]).transferFrom(msg.sender, address(this), amounts[i]);
+            (bool success) = IERC20Metadata(tokenAddresses[i]).transferFrom(msg.sender, address(this), amounts[i]);
             if (!success) {
                 revert DeCup__TransferFailed();
             }
         }
     }
 
-    // Public functionss
+    /*//////////////////////////////////////////////////////////////
+                           PUBLIC FUNCTIONSS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Burns the NFT and withdraws all collateral assets to the caller
+     * @param tokenId The ID of the NFT to burn and withdraw collateral from
+     */
     function burn(uint256 tokenId) public override nonReentrant {
         address[] memory assets = s_tokenIdToAssets[tokenId];
         if (assets.length == 0) {
@@ -213,17 +224,24 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         }
     }
 
-    // Private functionss
+    /*//////////////////////////////////////////////////////////////
+                           PRIVATE FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Mints a new token to the specified address and increments the token counter
+     * @param to The address to mint the token to
+     * @param tokenId The ID of the token to mint
+     */
     function _mintAndIncreaseCounter(address to, uint256 tokenId) private {
         _safeMint(to, tokenId);
         s_tokenCounter++;
     }
+
     /**
      * @notice Function to withdraw native currency
      * @param amount - withdraw amount
      */
-
     function _withdrawNativeCurrency(uint256 amount) private {
         if (address(this).balance < amount) {
             revert DeCup__InsufficientBalance();
@@ -245,10 +263,14 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     function _withdrawSingleToken(address tokenAddress, uint256 amount) private moreThanZero(amount) {
         emit WithdrawERC20Token(msg.sender, tokenAddress, amount);
 
-        if (!IERC20(tokenAddress).transfer(msg.sender, amount)) {
+        if (!IERC20Metadata(tokenAddress).transfer(msg.sender, amount)) {
             revert DeCup__TransferFailed();
         }
     }
+
+    /*//////////////////////////////////////////////////////////////
+                INTERNAL / PRIVATE VIEW / PURE FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Returns the base URI for token metadata in base64 JSON format
@@ -256,13 +278,92 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     function _baseURI() internal pure override returns (string memory) {
         return "data:application/json;base64,";
     }
+
+    /*//////////////////////////////////////////////////////////////
+                EXTERNAL / PUBLIC VIEW / PURE FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Returns the USD value of a given token amount using Chainlink price feeds
+     * @param tokenAddress The address of the ERC20 token to get the value for. Use address(0) for native currency
+     * @param amount The amount of tokens to calculate the USD value for
+     * @return The USD value of the given token amount with additional precision
+     */
+    function getUsdValue(address tokenAddress, uint256 amount) public view returns (uint256) {
+        AggregatorV3Interface priceFeed;
+
+        if (tokenAddress == address(0)) {
+            priceFeed = AggregatorV3Interface(s_defaultPriceFeed);
+        } else {
+            priceFeed = AggregatorV3Interface(s_tokenToPriceFeed[tokenAddress]);
+        }
+
+        (, int256 price,,,) = priceFeed.latestRoundData();
+
+        return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
+    }
+
+    /**
+     * @notice Returns the metadata URI for a given token ID in base64 JSON format
+     * @param _tokenId The ID of the token to get metadata for
+     * @return A base64 encoded JSON string containing the token's metadata including name, description, attributes and image
+     */
+    function tokenURI(uint256 _tokenId) public view override returns (string memory) {
+        string memory imageURI = s_svgImageUri;
+        address[] memory assets = s_tokenIdToAssets[_tokenId];
+
+        bytes memory attributes;
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            string memory symbol;
+            uint256 amount = getUsdValue(assets[i], s_collateralDeposited[_tokenId][assets[i]]);
+
+            if (assets[i] == address(0)) {
+                // Native currency (ETH, MATIC, etc.)
+                symbol = "ETH"; // You might want to make this configurable based on chain
+            } else {
+                // ERC20 token
+                symbol = IERC20Metadata(assets[i]).symbol();
+            }
+
+            attributes = abi.encodePacked(
+                attributes,
+                '{"trait_type":"',
+                symbol,
+                '","value":"',
+                Strings.toString(amount),
+                '"}',
+                i < assets.length - 1 ? "," : ""
+            );
+        }
+        return string(
+            abi.encodePacked(
+                _baseURI(),
+                Base64.encode(
+                    bytes(
+                        abi.encodePacked(
+                            '{"name":"',
+                            name(),
+                            '","description":"Decentralized Cup of assets", "attributes": [',
+                            '{"trait_type":"TCL","value":"0 USD"}',
+                            attributes.length > 0 ? "," : "",
+                            attributes,
+                            '],"image":"',
+                            imageURI,
+                            '"}'
+                        )
+                    )
+                )
+            )
+        );
+    }
 }
 
 // Layout of Contract:
 // version
 // imports
-// errors
 // interfaces, libraries, contracts
+// errors
 // Type declarations
 // State variables
 // Events

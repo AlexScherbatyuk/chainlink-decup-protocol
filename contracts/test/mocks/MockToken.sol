@@ -9,8 +9,11 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * @notice This is a simple ERC20 contract with 100% test coverage example
  */
 contract MockToken is ERC20 {
-    constructor(uint256 initialSupply) ERC20("MockToken", "MT") {
-        _mint(msg.sender, initialSupply);
+    constructor(string memory name, string memory symbol, address initialAccount, uint256 initialBalance)
+        payable
+        ERC20(name, symbol)
+    {
+        _mint(initialAccount, initialBalance);
     }
 }
 

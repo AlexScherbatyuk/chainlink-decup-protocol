@@ -7,3 +7,6 @@
 [submodule "contracts/lib/foundry-devops"]
 	path = contracts/lib/foundry-devops
 	url = https://github.com/cyfrin/foundry-devops
+[submodule "contracts/lib/chainlink-brownie-contracts"]
+	path = contracts/lib/chainlink-brownie-contracts
+	url = https://github.com/smartcontractkit/chainlink-brownie-contracts
