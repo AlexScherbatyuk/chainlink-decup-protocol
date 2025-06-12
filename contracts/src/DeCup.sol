@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Recieve Native currency
+// Receive Native currency
 // Receive ERC20
 // Withdraw Native currency
 // Withdraw ERC20
-// MintNFT with attributes equal to deposited emount
-// BurnNFT witdraw assets based on NFT attributes
+// MintNFT with attributes equal to deposited amount
+// BurnNFT & withdraw assets based on NFT collateral data
 
 // Chainklink "Receiver" should have permissions send NFT to another owner (change owner).
 // Chainklink "Receiver" should have permissions to burn NFT on behalf of an owner.
@@ -57,8 +57,8 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     mapping(uint256 tokenId => mapping(address token => uint256 amount)) private s_collateralDeposited;
 
     // Events
-    event DepositeNativeCurrency(address indexed from, uint256 amount);
-    event DepositeERC20Token(address indexed from, address indexed token, uint256 amount);
+    event DepositNativeCurrency(address indexed from, uint256 amount);
+    event DepositERC20Token(address indexed from, address indexed token, uint256 amount);
     event WithdrawNativeCurrency(address indexed to, uint256 amount);
     event WithdrawERC20Token(address indexed to, address indexed token, uint256 amount);
 
@@ -116,7 +116,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
 
         // Effect
         uint256 tokenId = s_tokenCounter;
-        emit DepositeNativeCurrency(msg.sender, msg.value);
+        emit DepositNativeCurrency(msg.sender, msg.value);
         s_collateralDeposited[tokenId][address(0)] += msg.value;
         s_tokenIdToAssets[tokenId].push(address(0));
         _safeMint(msg.sender, tokenId);
@@ -133,7 +133,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * and mint a new NFT representing the deposited collateral. The caller must have approved this contract
      * to spend their tokens before calling this function.
      */
-    function depositeSingleTokenAndMint(address tokenAddress, uint256 amount)
+    function depositSingleTokenAndMint(address tokenAddress, uint256 amount)
         external
         payable
         moreThanZero(amount)
@@ -145,7 +145,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         }
         // Effects
         uint256 tokenId = s_tokenCounter;
-        emit DepositeERC20Token(msg.sender, tokenAddress, amount);
+        emit DepositERC20Token(msg.sender, tokenAddress, amount);
         s_collateralDeposited[tokenId][tokenAddress] += amount;
         s_tokenIdToAssets[tokenId].push(tokenAddress);
         _mintAndIncreaseCounter(msg.sender, tokenId);
@@ -164,7 +164,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @dev Can also accept native currency via msg.value. If msg.value > 0, native currency will be included as collateral.
      * All token amounts must be greater than 0. Token addresses and amounts arrays must be same length.
      */
-    function depositeMultipleAssetsAndMint(address[] memory tokenAddresses, uint256[] memory amounts)
+    function depositMultipleAssetsAndMint(address[] memory tokenAddresses, uint256[] memory amounts)
         external
         payable
         nonReentrant
@@ -178,7 +178,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         uint256 tokenId = s_tokenCounter;
 
         if (msg.value > 0) {
-            emit DepositeNativeCurrency(msg.sender, msg.value);
+            emit DepositNativeCurrency(msg.sender, msg.value);
             s_collateralDeposited[tokenId][address(0)] += msg.value;
             s_tokenIdToAssets[tokenId].push(address(0));
         }
@@ -190,7 +190,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
                 revert DeCup__AmountMustBeGreaterThanZero();
             }
 
-            emit DepositeERC20Token(msg.sender, tokenAddresses[i], amounts[i]);
+            emit DepositERC20Token(msg.sender, tokenAddresses[i], amounts[i]);
             s_collateralDeposited[tokenId][tokenAddresses[i]] += amounts[i];
             s_tokenIdToAssets[tokenId].push(tokenAddresses[i]);
 
