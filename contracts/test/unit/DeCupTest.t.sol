@@ -30,8 +30,7 @@ contract DeCupTest is Test {
     uint256 public constant INITIAL_ERC20_USDC = 1000e6;
 
     string public constant s_nativeDepositTokenURI =
-        "data:application/json;base64,eyJ0b2tlbklkIjoiMCIsIm5hbWUiOiJEZUN1cCMwICQxNTUwMDAiLCJkZXNjcmlwdGlvbiI6IkRlY2VudHJhbGl6ZWQgQ3VwIG9mIGFzc2V0cyIsICJhdHRyaWJ1dGVzIjogW3sidHJhaXRfdHlwZSI6IlRDTCIsInZhbHVlIjoiMTU1MDAwIFVTRCJ9LHsidHJhaXRfdHlwZSI6IkVUSCIsInZhbHVlIjoiMjAwMDAwMDAwMDAwMDAwMDAwMDAwMCJ9LHsidHJhaXRfdHlwZSI6IldFVEgiLCJ2YWx1ZSI6IjMwMDAwMDAwMDAwMDAwMDAwMDAwMDAifSx7InRyYWl0X3R5cGUiOiJXQlRDIiwidmFsdWUiOiIxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifSx7InRyYWl0X3R5cGUiOiJVU0RDIiwidmFsdWUiOiI1MDAwMDAwMDAwMDAwMDAwMDAwMDAwMCJ9XSwiaW1hZ2UiOiJkYXRhOmltYWdlL3N2Zyt4bWw7YmFzZTY0LFBITjJaeUIzYVdSMGFEMGlNVFUySWlCb1pXbG5hSFE5SWpFMU1DSWdkbWxsZDBKdmVEMGlNQ0F3SURFMU5pQXhOVEFpSUdacGJHdzlJbTV2Ym1VaUlIaHRiRzV6UFNKb2RIUndPaTh2ZDNkM0xuY3pMbTl5Wnk4eU1EQXdMM04yWnlJK0NqeHdZWFJvSUdROUlrMHhNakVnTXpCRE1UWXhJRFl3TGpNek16TWdNVFl4SURrd0xqWTJOamNnTVRJeElERXlNU0lnYzNSeWIydGxQU0lqTkRNNVFVWkZJaUJ6ZEhKdmEyVXRkMmxrZEdnOUlqRXdJaTgrQ2p4eVpXTjBJSGc5SWprMklpQjNhV1IwYUQwaU16SWlJR2hsYVdkb2REMGlNVFV3SWlCbWFXeHNQU0lqTkRNNVFVWkZJaTgrQ2p4eVpXTjBJSGc5SWpZMElpQjNhV1IwYUQwaU16SWlJR2hsYVdkb2REMGlNVFV3SWlCbWFXeHNQU0lqTkVWQk1VWkdJaTgrQ2p4eVpXTjBJSGc5SWpNeUlpQjNhV1IwYUQwaU16SWlJR2hsYVdkb2REMGlNVFV3SWlCbWFXeHNQU0lqTmpOQlEwWkdJaTgrQ2p4eVpXTjBJSGRwWkhSb1BTSXpNaUlnYUdWcFoyaDBQU0l4TlRBaUlHWnBiR3c5SWlNM09VSTRSa1lpTHo0S1BHY2dZMnhwY0Mxd1lYUm9QU0oxY213b0kyTnNhWEF3WHpSZk1qRTBLU0krQ2p4d1lYUm9JR1E5SWswMk15NDFJREV5Tmk0MU1rTTRPQzR3TnpZM0lERXlOaTQxTWlBeE1EZ2dNVEEyTGpBek15QXhNRGdnT0RBdU56WkRNVEE0SURVMUxqUTROelFnT0RndU1EYzJOeUF6TlNBMk15NDFJRE0xUXpNNExqa3lNek1nTXpVZ01Ua2dOVFV1TkRnM05DQXhPU0E0TUM0M05rTXhPU0F4TURZdU1ETXpJRE00TGpreU16TWdNVEkyTGpVeUlEWXpMalVnTVRJMkxqVXlXaUlnYzNSeWIydGxQU0ozYUdsMFpTSWdjM1J5YjJ0bExYZHBaSFJvUFNJeE1DSXZQZ284TDJjK0NqeG5JR05zYVhBdGNHRjBhRDBpZFhKc0tDTmpiR2x3TVY4MFh6SXhOQ2tpUGdvOGNHRjBhQ0JrUFNKTk5qTXVOU0F4TWpZdU5USkRPRGd1TURjMk55QXhNall1TlRJZ01UQTRJREV3Tmk0d016TWdNVEE0SURnd0xqYzJRekV3T0NBMU5TNDBPRGMwSURnNExqQTNOamNnTXpVZ05qTXVOU0F6TlVNek9DNDVNak16SURNMUlERTVJRFUxTGpRNE56UWdNVGtnT0RBdU56WkRNVGtnTVRBMkxqQXpNeUF6T0M0NU1qTXpJREV5Tmk0MU1pQTJNeTQxSURFeU5pNDFNbG9pSUhOMGNtOXJaVDBpSTBZMVJqQkdNQ0lnYzNSeWIydGxMWGRwWkhSb1BTSXhNQ0l2UGdvOGNHRjBhQ0JrUFNKTk5URWdOVGt1TWpaRE5USXVOalUyTXlBMU9TNHlOaUExTXk0NE1EY2dOVGt1Tmpjek5TQTFOQzQxTkRZNUlEWXdMalF4TXpORE5UVXVNamcyTmlBMk1TNHhOVE15SURVMUxqY3dNRElnTmpJdU16QTBJRFUxTGpjd01ESWdOak11T1RZd01sWTJOeTR4TWpZeVF6VTBMakkwTmpFZ05qWXVORE14TXlBMU1pNDJOREl6SURZMkxqQTFPVGdnTlRFZ05qWXVNRFU1T0VNME9DNHhNRGt6SURZMkxqQTFPVGdnTkRVdU16TTNNU0EyTnk0eU1EZ3pJRFF6TGpJNU15QTJPUzR5TlRJeVF6UXhMakkwT0RnZ056RXVNamsyTXlBME1DNHdPVGsySURjMExqQTJPVE1nTkRBdU1EazVOaUEzTmk0NU5qQXlRelF3TGpBNU9UY2dOemt1T0RVeElEUXhMakkwT0RrZ09ESXVOakl6TVNBME15NHlPVE1nT0RRdU5qWTNNa00wTlM0ek16Y3hJRGcyTGpjeE1UTWdORGd1TVRBNU1pQTROeTQ0TlRrMklEVXhJRGczTGpnMU9UWkROVEl1TmpReU5TQTROeTQ0TlRrMklEVTBMakkwTmlBNE55NDBPRGMwSURVMUxqY3dNRElnT0RZdU56a3lNbFk0T1M0NU5qQXlRelUxTGpjd01ESWdPVEV1TmpFMk1TQTFOUzR5T0RZMElEa3lMamMyTmpNZ05UUXVOVFEyT1NBNU15NDFNRFl4UXpVekxqZ3dOeUE1TkM0eU5EVTVJRFV5TGpZMU5qTWdPVFF1TmpZd05DQTFNU0E1TkM0Mk5qQTBTRE00TGpWV05Ua3VNalpJTlRGYVRUVTJMamN3TURJZ05qZ3VPRFk0TkVNMU55NHhOakExSURZNUxqRTVNallnTlRjdU5UazJOU0EyT1M0MU5UVTRJRFU0SURZNUxqazFPVEpETlRrdU9EVTJOaUEzTVM0NE1UVTRJRFl3TGprd01EUWdOelF1TXpNME5pQTJNQzQ1TURBMElEYzJMamsyTURKRE5qQXVPVEF3TXlBM09TNDFPRFU0SURVNUxqZzFOallnT0RJdU1UQXpOaUExT0NBNE15NDVOakF5UXpVM0xqVTVOallnT0RRdU16WXpOU0ExTnk0eE5qQXpJRGcwTGpjeU5Ua2dOVFl1TnpBd01pQTROUzR3TlZZMk9DNDROamcwV2swME1TNHdPVGsySURjMkxqazJNREpETkRFdU1EazVOaUEzTkM0ek16UTJJRFF5TGpFME16UWdOekV1T0RFMU9DQTBOQ0EyT1M0NU5Ua3lRelExTGpnMU5qWWdOamd1TVRBeU9TQTBPQzR6TnpRMUlEWTNMakExT1RnZ05URWdOamN1TURVNU9FTTFNaTQyTlRVNUlEWTNMakExT1RnZ05UUXVNalk0T0NBMk55NDBOelV5SURVMUxqY3dNRElnTmpndU1qUTNNMVk0TlM0Mk56RXhRelUwTGpJMk9EWWdPRFl1TkRRek5TQTFNaTQyTlRZeElEZzJMamcxT1RZZ05URWdPRFl1T0RVNU5rTTBPQzR6TnpRMElEZzJMamcxT1RZZ05EVXVPRFUyTmlBNE5TNDRNVFk0SURRMElEZ3pMamsyTURKRE5ESXVNVFF6TkNBNE1pNHhNRE0ySURReExqQTVPVGNnTnprdU5UZzFPQ0EwTVM0d09UazJJRGMyTGprMk1ESmFJaUJtYVd4c1BTSWpSalZHTUVZd0lpQnpkSEp2YTJVOUlpTkdOVVl3UmpBaUx6NEtQSEJoZEdnZ1pEMGlUVFUzTGpjMk1EUWdNVEF3TGpnMlNEY3dMakl6T1RoRE56RXVNVEF3TkNBeE1EQXVPRFlnTnpJdU1ESXhJREV3TVM0eU9EZ2dOek11TURBMk5DQXhNREl1TWpjelREYzRMak01TXpJZ01UQTNMalkyU0RRNUxqWXdOMHcxTkM0NU9UTTRJREV3TWk0eU56TkROVFV1T1RFM055QXhNREV1TXpRNUlEVTJMamM0TkRRZ01UQXdMamt4TlNBMU55NDFPVGd5SURFd01DNDROalZNTlRjdU56WXdOQ0F4TURBdU9EWmFJaUJtYVd4c1BTSWpSalZHTUVZd0lpQnpkSEp2YTJVOUlpTkdOVVl3UmpBaUx6NEtQQzluUGdvOFp5QmpiR2x3TFhCaGRHZzlJblZ5YkNnalkyeHBjREpmTkY4eU1UUXBJajRLUEhCaGRHZ2daRDBpVFRZMUxqVWdNVEkyTGpVeVF6a3dMakEzTmpjZ01USTJMalV5SURFeE1DQXhNRFl1TURNeklERXhNQ0E0TUM0M05rTXhNVEFnTlRVdU5EZzNOQ0E1TUM0d056WTNJRE0xSURZMUxqVWdNelZETkRBdU9USXpNeUF6TlNBeU1TQTFOUzQwT0RjMElESXhJRGd3TGpjMlF6SXhJREV3Tmk0d016TWdOREF1T1RJek15QXhNall1TlRJZ05qVXVOU0F4TWpZdU5USmFJaUJ6ZEhKdmEyVTlJaU5GUWtWQlJVRWlJSE4wY205clpTMTNhV1IwYUQwaU1UQWlMejRLUEhCaGRHZ2daRDBpVFRZNExqWWdOVGd1TnpaRE56VXVOVE16TXlBMU9DNDNOaUE0TUM0M016TXpJRFl4TGpNMklEZzBMaklnTmpZdU5UWkRPRGN1TmpZMk55QTNNUzQzTmlBNE9TNDBJRGMyTGprMklEZzVMalFnT0RJdU1UWkRPRFV1T1RNek15QTVNQzQ0TWpZM0lEYzVMamcyTmpjZ09UVXVNVFlnTnpFdU1pQTVOUzR4TmtnMk5sWTROeTR6TmtnM01TNHlRemMwTGpZMk5qY2dPRGN1TXpZZ056Y3VNalkyTnlBNE5TNDJNalkzSURjNUlEZ3lMakUyUXpjM0xqSTJOamNnTnpndU5qa3pNeUEzTkM0Mk5qWTNJRGMyTGprMklEY3hMaklnTnpZdU9UWklOalpXTlRndU56WklOamd1TmxvaUlHWnBiR3c5SWlORlFrVkJSVUVpTHo0S1BIQmhkR2dnWkQwaVRUVTVMamMySURFd01DNHpOa2czTWk0eU5FTTNNeTR5T0NBeE1EQXVNellnTnpRdU16SWdNVEF3TGpnNElEYzFMak0ySURFd01TNDVNa3c0TVM0MklERXdPQzR4TmtnMU1DNDBURFUyTGpZMElERXdNUzQ1TWtNMU55NDJPQ0F4TURBdU9EZ2dOVGd1TnpJZ01UQXdMak0ySURVNUxqYzJJREV3TUM0ek5sb2lJR1pwYkd3OUlpTkZRa1ZCUlVFaUx6NEtQQzluUGdvOFp5QmpiR2x3TFhCaGRHZzlJblZ5YkNnalkyeHBjRE5mTkY4eU1UUXBJajRLUEhCaGRHZ2daRDBpVFRZMUxqVWdNVEkyTGpVeVF6a3dMakEzTmpjZ01USTJMalV5SURFeE1DQXhNRFl1TURNeklERXhNQ0E0TUM0M05rTXhNVEFnTlRVdU5EZzNOQ0E1TUM0d056WTNJRE0xSURZMUxqVWdNelZETkRBdU9USXpNeUF6TlNBeU1TQTFOUzQwT0RjMElESXhJRGd3TGpjMlF6SXhJREV3Tmk0d016TWdOREF1T1RJek15QXhNall1TlRJZ05qVXVOU0F4TWpZdU5USmFJaUJ6ZEhKdmEyVTlJaU5GTUVSR1JFWWlJSE4wY205clpTMTNhV1IwYUQwaU1UQWlMejRLUEM5blBnbzhaR1ZtY3o0S1BHTnNhWEJRWVhSb0lHbGtQU0pqYkdsd01GODBYekl4TkNJK0NqeHlaV04wSUhkcFpIUm9QU0l6TWlJZ2FHVnBaMmgwUFNJeE1qZ2lJR1pwYkd3OUluZG9hWFJsSWlCMGNtRnVjMlp2Y20wOUluUnlZVzV6YkdGMFpTZ3dJREUzS1NJdlBnbzhMMk5zYVhCUVlYUm9QZ284WTJ4cGNGQmhkR2dnYVdROUltTnNhWEF4WHpSZk1qRTBJajRLUEhKbFkzUWdkMmxrZEdnOUlqTXlJaUJvWldsbmFIUTlJakV5T0NJZ1ptbHNiRDBpZDJocGRHVWlJSFJ5WVc1elptOXliVDBpZEhKaGJuTnNZWFJsS0RNeUlERTNLU0l2UGdvOEwyTnNhWEJRWVhSb1BnbzhZMnhwY0ZCaGRHZ2dhV1E5SW1Oc2FYQXlYelJmTWpFMElqNEtQSEpsWTNRZ2QybGtkR2c5SWpNeUlpQm9aV2xuYUhROUlqRXlPQ0lnWm1sc2JEMGlkMmhwZEdVaUlIUnlZVzV6Wm05eWJUMGlkSEpoYm5Oc1lYUmxLRFkwSURFM0tTSXZQZ284TDJOc2FYQlFZWFJvUGdvOFkyeHBjRkJoZEdnZ2FXUTlJbU5zYVhBelh6UmZNakUwSWo0S1BISmxZM1FnZDJsa2RHZzlJak15SWlCb1pXbG5hSFE5SWpFeU9DSWdabWxzYkQwaWQyaHBkR1VpSUhSeVlXNXpabTl5YlQwaWRISmhibk5zWVhSbEtEazJJREUzS1NJdlBnbzhMMk5zYVhCUVlYUm9QZ284TDJSbFpuTStDand2YzNablBnbz0ifQ==";
-
+        "data:application/json;base64,eyJ0b2tlbklkIjoiMCIsIm5hbWUiOiJEZUN1cCMwICQxNTUwMDAiLCJkZXNjcmlwdGlvbiI6IkRlY2VudHJhbGl6ZWQgQ3VwIG9mIGFzc2V0cyIsICJhdHRyaWJ1dGVzIjogW3sidHJhaXRfdHlwZSI6IlRDTCIsInZhbHVlIjoiMTU1MDAwIFVTRCJ9LHsidHJhaXRfdHlwZSI6IkVUSCIsInZhbHVlIjoiMTAwMDAwMDAwMDAwMDAwMDAwMCJ9LHsidHJhaXRfdHlwZSI6IldFVEgiLCJ2YWx1ZSI6IjE1MDAwMDAwMDAwMDAwMDAwMDAifSx7InRyYWl0X3R5cGUiOiJXQlRDIiwidmFsdWUiOiIxMDAwMDAwMDAwMCJ9LHsidHJhaXRfdHlwZSI6IlVTREMiLCJ2YWx1ZSI6IjUwMDAwMDAwIn1dLCJpbWFnZSI6ImRhdGE6aW1hZ2Uvc3ZnK3htbDtiYXNlNjQsUEhOMlp5QjNhV1IwYUQwaU1UVTJJaUJvWldsbmFIUTlJakUxTUNJZ2RtbGxkMEp2ZUQwaU1DQXdJREUxTmlBeE5UQWlJR1pwYkd3OUltNXZibVVpSUhodGJHNXpQU0pvZEhSd09pOHZkM2QzTG5jekxtOXlaeTh5TURBd0wzTjJaeUkrQ2p4d1lYUm9JR1E5SWsweE1qRWdNekJETVRZeElEWXdMak16TXpNZ01UWXhJRGt3TGpZMk5qY2dNVEl4SURFeU1TSWdjM1J5YjJ0bFBTSWpORE01UVVaRklpQnpkSEp2YTJVdGQybGtkR2c5SWpFd0lpOCtDanh5WldOMElIZzlJamsySWlCM2FXUjBhRDBpTXpJaUlHaGxhV2RvZEQwaU1UVXdJaUJtYVd4c1BTSWpORE01UVVaRklpOCtDanh5WldOMElIZzlJalkwSWlCM2FXUjBhRDBpTXpJaUlHaGxhV2RvZEQwaU1UVXdJaUJtYVd4c1BTSWpORVZCTVVaR0lpOCtDanh5WldOMElIZzlJak15SWlCM2FXUjBhRDBpTXpJaUlHaGxhV2RvZEQwaU1UVXdJaUJtYVd4c1BTSWpOak5CUTBaR0lpOCtDanh5WldOMElIZHBaSFJvUFNJek1pSWdhR1ZwWjJoMFBTSXhOVEFpSUdacGJHdzlJaU0zT1VJNFJrWWlMejRLUEdjZ1kyeHBjQzF3WVhSb1BTSjFjbXdvSTJOc2FYQXdYelJmTWpFMEtTSStDanh3WVhSb0lHUTlJazAyTXk0MUlERXlOaTQxTWtNNE9DNHdOelkzSURFeU5pNDFNaUF4TURnZ01UQTJMakF6TXlBeE1EZ2dPREF1TnpaRE1UQTRJRFUxTGpRNE56UWdPRGd1TURjMk55QXpOU0EyTXk0MUlETTFRek00TGpreU16TWdNelVnTVRrZ05UVXVORGczTkNBeE9TQTRNQzQzTmtNeE9TQXhNRFl1TURNeklETTRMamt5TXpNZ01USTJMalV5SURZekxqVWdNVEkyTGpVeVdpSWdjM1J5YjJ0bFBTSjNhR2wwWlNJZ2MzUnliMnRsTFhkcFpIUm9QU0l4TUNJdlBnbzhMMmMrQ2p4bklHTnNhWEF0Y0dGMGFEMGlkWEpzS0NOamJHbHdNVjgwWHpJeE5Da2lQZ284Y0dGMGFDQmtQU0pOTmpNdU5TQXhNall1TlRKRE9EZ3VNRGMyTnlBeE1qWXVOVElnTVRBNElERXdOaTR3TXpNZ01UQTRJRGd3TGpjMlF6RXdPQ0ExTlM0ME9EYzBJRGc0TGpBM05qY2dNelVnTmpNdU5TQXpOVU16T0M0NU1qTXpJRE0xSURFNUlEVTFMalE0TnpRZ01Ua2dPREF1TnpaRE1Ua2dNVEEyTGpBek15QXpPQzQ1TWpNeklERXlOaTQxTWlBMk15NDFJREV5Tmk0MU1sb2lJSE4wY205clpUMGlJMFkxUmpCR01DSWdjM1J5YjJ0bExYZHBaSFJvUFNJeE1DSXZQZ284Y0dGMGFDQmtQU0pOTlRFZ05Ua3VNalpETlRJdU5qVTJNeUExT1M0eU5pQTFNeTQ0TURjZ05Ua3VOamN6TlNBMU5DNDFORFk1SURZd0xqUXhNek5ETlRVdU1qZzJOaUEyTVM0eE5UTXlJRFUxTGpjd01ESWdOakl1TXpBMElEVTFMamN3TURJZ05qTXVPVFl3TWxZMk55NHhNall5UXpVMExqSTBOakVnTmpZdU5ETXhNeUExTWk0Mk5ESXpJRFkyTGpBMU9UZ2dOVEVnTmpZdU1EVTVPRU0wT0M0eE1Ea3pJRFkyTGpBMU9UZ2dORFV1TXpNM01TQTJOeTR5TURneklEUXpMakk1TXlBMk9TNHlOVEl5UXpReExqSTBPRGdnTnpFdU1qazJNeUEwTUM0d09UazJJRGMwTGpBMk9UTWdOREF1TURrNU5pQTNOaTQ1TmpBeVF6UXdMakE1T1RjZ056a3VPRFV4SURReExqSTBPRGtnT0RJdU5qSXpNU0EwTXk0eU9UTWdPRFF1TmpZM01rTTBOUzR6TXpjeElEZzJMamN4TVRNZ05EZ3VNVEE1TWlBNE55NDROVGsySURVeElEZzNMamcxT1RaRE5USXVOalF5TlNBNE55NDROVGsySURVMExqSTBOaUE0Tnk0ME9EYzBJRFUxTGpjd01ESWdPRFl1TnpreU1sWTRPUzQ1TmpBeVF6VTFMamN3TURJZ09URXVOakUyTVNBMU5TNHlPRFkwSURreUxqYzJOak1nTlRRdU5UUTJPU0E1TXk0MU1EWXhRelV6TGpnd055QTVOQzR5TkRVNUlEVXlMalkxTmpNZ09UUXVOall3TkNBMU1TQTVOQzQyTmpBMFNETTRMalZXTlRrdU1qWklOVEZhVFRVMkxqY3dNRElnTmpndU9EWTRORU0xTnk0eE5qQTFJRFk1TGpFNU1qWWdOVGN1TlRrMk5TQTJPUzQxTlRVNElEVTRJRFk1TGprMU9USkROVGt1T0RVMk5pQTNNUzQ0TVRVNElEWXdMamt3TURRZ056UXVNek0wTmlBMk1DNDVNREEwSURjMkxqazJNREpETmpBdU9UQXdNeUEzT1M0MU9EVTRJRFU1TGpnMU5qWWdPREl1TVRBek5pQTFPQ0E0TXk0NU5qQXlRelUzTGpVNU5qWWdPRFF1TXpZek5TQTFOeTR4TmpBeklEZzBMamN5TlRrZ05UWXVOekF3TWlBNE5TNHdOVlkyT0M0NE5qZzBXazAwTVM0d09UazJJRGMyTGprMk1ESkROREV1TURrNU5pQTNOQzR6TXpRMklEUXlMakUwTXpRZ056RXVPREUxT0NBME5DQTJPUzQ1TlRreVF6UTFMamcxTmpZZ05qZ3VNVEF5T1NBME9DNHpOelExSURZM0xqQTFPVGdnTlRFZ05qY3VNRFU1T0VNMU1pNDJOVFU1SURZM0xqQTFPVGdnTlRRdU1qWTRPQ0EyTnk0ME56VXlJRFUxTGpjd01ESWdOamd1TWpRM00xWTROUzQyTnpFeFF6VTBMakkyT0RZZ09EWXVORFF6TlNBMU1pNDJOVFl4SURnMkxqZzFPVFlnTlRFZ09EWXVPRFU1TmtNME9DNHpOelEwSURnMkxqZzFPVFlnTkRVdU9EVTJOaUE0TlM0NE1UWTRJRFEwSURnekxqazJNREpETkRJdU1UUXpOQ0E0TWk0eE1ETTJJRFF4TGpBNU9UY2dOemt1TlRnMU9DQTBNUzR3T1RrMklEYzJMamsyTURKYUlpQm1hV3hzUFNJalJqVkdNRVl3SWlCemRISnZhMlU5SWlOR05VWXdSakFpTHo0S1BIQmhkR2dnWkQwaVRUVTNMamMyTURRZ01UQXdMamcyU0Rjd0xqSXpPVGhETnpFdU1UQXdOQ0F4TURBdU9EWWdOekl1TURJeElERXdNUzR5T0RnZ056TXVNREEyTkNBeE1ESXVNamN6VERjNExqTTVNeklnTVRBM0xqWTJTRFE1TGpZd04wdzFOQzQ1T1RNNElERXdNaTR5TnpORE5UVXVPVEUzTnlBeE1ERXVNelE1SURVMkxqYzRORFFnTVRBd0xqa3hOU0ExTnk0MU9UZ3lJREV3TUM0NE5qVk1OVGN1TnpZd05DQXhNREF1T0RaYUlpQm1hV3hzUFNJalJqVkdNRVl3SWlCemRISnZhMlU5SWlOR05VWXdSakFpTHo0S1BDOW5QZ284WnlCamJHbHdMWEJoZEdnOUluVnliQ2dqWTJ4cGNESmZORjh5TVRRcElqNEtQSEJoZEdnZ1pEMGlUVFkxTGpVZ01USTJMalV5UXprd0xqQTNOamNnTVRJMkxqVXlJREV4TUNBeE1EWXVNRE16SURFeE1DQTRNQzQzTmtNeE1UQWdOVFV1TkRnM05DQTVNQzR3TnpZM0lETTFJRFkxTGpVZ016VkROREF1T1RJek15QXpOU0F5TVNBMU5TNDBPRGMwSURJeElEZ3dMamMyUXpJeElERXdOaTR3TXpNZ05EQXVPVEl6TXlBeE1qWXVOVElnTmpVdU5TQXhNall1TlRKYUlpQnpkSEp2YTJVOUlpTkZRa1ZCUlVFaUlITjBjbTlyWlMxM2FXUjBhRDBpTVRBaUx6NEtQSEJoZEdnZ1pEMGlUVFk0TGpZZ05UZ3VOelpETnpVdU5UTXpNeUExT0M0M05pQTRNQzQzTXpNeklEWXhMak0ySURnMExqSWdOall1TlRaRE9EY3VOalkyTnlBM01TNDNOaUE0T1M0MElEYzJMamsySURnNUxqUWdPREl1TVRaRE9EVXVPVE16TXlBNU1DNDRNalkzSURjNUxqZzJOamNnT1RVdU1UWWdOekV1TWlBNU5TNHhOa2cyTmxZNE55NHpOa2czTVM0eVF6YzBMalkyTmpjZ09EY3VNellnTnpjdU1qWTJOeUE0TlM0Mk1qWTNJRGM1SURneUxqRTJRemMzTGpJMk5qY2dOemd1Tmprek15QTNOQzQyTmpZM0lEYzJMamsySURjeExqSWdOell1T1RaSU5qWldOVGd1TnpaSU5qZ3VObG9pSUdacGJHdzlJaU5GUWtWQlJVRWlMejRLUEhCaGRHZ2daRDBpVFRVNUxqYzJJREV3TUM0ek5rZzNNaTR5TkVNM015NHlPQ0F4TURBdU16WWdOelF1TXpJZ01UQXdMamc0SURjMUxqTTJJREV3TVM0NU1rdzRNUzQySURFd09DNHhOa2cxTUM0MFREVTJMalkwSURFd01TNDVNa00xTnk0Mk9DQXhNREF1T0RnZ05UZ3VOeklnTVRBd0xqTTJJRFU1TGpjMklERXdNQzR6TmxvaUlHWnBiR3c5SWlORlFrVkJSVUVpTHo0S1BDOW5QZ284WnlCamJHbHdMWEJoZEdnOUluVnliQ2dqWTJ4cGNETmZORjh5TVRRcElqNEtQSEJoZEdnZ1pEMGlUVFkxTGpVZ01USTJMalV5UXprd0xqQTNOamNnTVRJMkxqVXlJREV4TUNBeE1EWXVNRE16SURFeE1DQTRNQzQzTmtNeE1UQWdOVFV1TkRnM05DQTVNQzR3TnpZM0lETTFJRFkxTGpVZ016VkROREF1T1RJek15QXpOU0F5TVNBMU5TNDBPRGMwSURJeElEZ3dMamMyUXpJeElERXdOaTR3TXpNZ05EQXVPVEl6TXlBeE1qWXVOVElnTmpVdU5TQXhNall1TlRKYUlpQnpkSEp2YTJVOUlpTkZNRVJHUkVZaUlITjBjbTlyWlMxM2FXUjBhRDBpTVRBaUx6NEtQQzluUGdvOFpHVm1jejRLUEdOc2FYQlFZWFJvSUdsa1BTSmpiR2x3TUY4MFh6SXhOQ0krQ2p4eVpXTjBJSGRwWkhSb1BTSXpNaUlnYUdWcFoyaDBQU0l4TWpnaUlHWnBiR3c5SW5kb2FYUmxJaUIwY21GdWMyWnZjbTA5SW5SeVlXNXpiR0YwWlNnd0lERTNLU0l2UGdvOEwyTnNhWEJRWVhSb1BnbzhZMnhwY0ZCaGRHZ2dhV1E5SW1Oc2FYQXhYelJmTWpFMElqNEtQSEpsWTNRZ2QybGtkR2c5SWpNeUlpQm9aV2xuYUhROUlqRXlPQ0lnWm1sc2JEMGlkMmhwZEdVaUlIUnlZVzV6Wm05eWJUMGlkSEpoYm5Oc1lYUmxLRE15SURFM0tTSXZQZ284TDJOc2FYQlFZWFJvUGdvOFkyeHBjRkJoZEdnZ2FXUTlJbU5zYVhBeVh6UmZNakUwSWo0S1BISmxZM1FnZDJsa2RHZzlJak15SWlCb1pXbG5hSFE5SWpFeU9DSWdabWxzYkQwaWQyaHBkR1VpSUhSeVlXNXpabTl5YlQwaWRISmhibk5zWVhSbEtEWTBJREUzS1NJdlBnbzhMMk5zYVhCUVlYUm9QZ284WTJ4cGNGQmhkR2dnYVdROUltTnNhWEF6WHpSZk1qRTBJajRLUEhKbFkzUWdkMmxrZEdnOUlqTXlJaUJvWldsbmFIUTlJakV5T0NJZ1ptbHNiRDBpZDJocGRHVWlJSFJ5WVc1elptOXliVDBpZEhKaGJuTnNZWFJsS0RrMklERTNLU0l2UGdvOEwyTnNhWEJRWVhSb1BnbzhMMlJsWm5NK0Nqd3ZjM1puUGdvPSJ9";
     /**
      * @notice Sets up the test environment by deploying contracts and initializing test variables
      * @dev This function:
@@ -40,6 +39,7 @@ contract DeCupTest is Test {
      * - Funds the test user with initial balances
      * - Transfers mock tokens to the test user
      */
+
     function setUp() external {
         DeployDeCup deployer = new DeployDeCup();
         s_svgDeCupImage = vm.readFile("./img/decup.svg");
@@ -130,6 +130,7 @@ contract DeCupTest is Test {
         // Assert
         assert(success);
         assertEq(address(s_deCup).balance, amount);
+        assertEq(s_deCup.getTokenCounter(), 1);
     }
 
     /**
@@ -151,24 +152,38 @@ contract DeCupTest is Test {
      * @notice Tests that native currency can be withdrawn by burning the NFT
      * @dev Verifies that burning an NFT minted with native currency deposit returns the correct amount to the user
      */
-    function testWithdrawNativeCurrency() public {
+    function testBurnNftWithdrawsNativeCurrency() public {
         // Arrange
         uint256 initialBalance = USER.balance;
+        uint256 tokenId = 0; // First minted token will have ID 0
 
         // First deposit 1 ether to get an NFT
-        vm.prank(USER);
+        vm.startPrank(USER);
         (bool success,) = address(s_deCup).call{value: 1 ether}("");
         assert(success);
 
-        uint256 tokenId = 0; // First minted token will have ID 0
-
         // Act - Burn the NFT to withdraw the collateral
-        vm.prank(USER);
         s_deCup.burn(tokenId);
-
+        vm.stopPrank();
         // Assert
         assertEq(USER.balance, initialBalance); // User should get back their 1 ether
         assertEq(address(s_deCup).balance, 0); // Contract should have no balance
+    }
+
+    function testBurnNftWittNativeCurrencyListedForSale() public {
+        // Arrange
+        uint256 tokenId = 0; // First minted token will have ID 0
+
+        // First deposit 1 ether to get an NFT
+        vm.startPrank(USER);
+        (bool success,) = address(s_deCup).call{value: 1 ether}("");
+        assert(success);
+
+        // Act - Burn the NFT to withdraw the collateral
+        s_deCup.listForSale(tokenId);
+        vm.expectRevert(DeCup.DeCup__TokenIsListedForSale.selector);
+        s_deCup.burn(tokenId);
+        vm.stopPrank();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -182,6 +197,7 @@ contract DeCupTest is Test {
     modifier depositSingleAssets() {
         // Arrange
         uint256 depositUsdcAmount = 50e6;
+        uint256 initialUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(USER);
         // Act - First deposit to mint NFT, then burn to withdraw
         vm.startPrank(USER);
         IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), depositUsdcAmount);
@@ -194,9 +210,35 @@ contract DeCupTest is Test {
     }
 
     /**
+     * @notice Tests that the list of assets deposited for a given token ID is correctly returned
+     * @dev Verifies that the contract properly returns the list of assets deposited for a given token ID
+     */
+    function testGetTokenAssetsList() public depositSingleAssets {
+        address[] memory assets = s_deCup.getTokenAssetsList(0);
+        assertEq(assets[0], address(s_mockTokenUsdc));
+    }
+
+    /**
+     * @notice Tests that the single asset deposit and withdrawal works correctly
+     * @dev Verifies that the contract properly handles single asset deposits and withdrawals
+     */
+    function testBurnNftWithdrawsSingleAsset() public depositSingleAssets {
+        uint256 initialUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(USER);
+        uint256 depositUsdcAmount = 50e6;
+        vm.prank(USER);
+        s_deCup.burn(0);
+
+        uint256 afterBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(USER);
+        assertEq(afterBalance, initialUsdcBalance + depositUsdcAmount);
+
+        // 1000000000
+        // 950000000
+    }
+    /**
      * @notice Tests that native currency can be added to an existing cup
      * @dev Verifies that the contract can receive ETH and updates its balance correctly
      */
+
     function testAddNativeCollateralToExistingCup() public depositSingleAssets {
         // Arrange
         uint256 initialBalance = address(s_deCup).balance;
@@ -311,11 +353,26 @@ contract DeCupTest is Test {
     function testAddTokenCollateralToExistingCup() public depositSingleAssets {
         // Arrange
         uint256 initialBalance = s_deCup.getCollateralDeposited(0, address(s_mockTokenUsdc));
+        uint256 initialUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup));
         vm.startPrank(USER);
-        s_deCup.addTokenCollateralToExistingCup(address(s_mockTokenUsdc), 1 ether, 0);
+        s_deCup.addTokenCollateralToExistingCup(address(s_mockTokenUsdc), 5e6, 0);
         vm.stopPrank();
         uint256 afterBalance = s_deCup.getCollateralDeposited(0, address(s_mockTokenUsdc));
-        assertEq(afterBalance, initialBalance + 1 ether);
+        uint256 afterUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup));
+        assertEq(afterBalance, initialBalance + 5e6);
+        assertEq(afterUsdcBalance, initialUsdcBalance);
+    }
+
+    /**
+     * @notice Tests that adding not allowed token collateral to an existing cup reverts
+     * @dev Verifies that the contract properly validates that the token is allowed
+     */
+    function testRevertWhenAddingNotAllowedTokenCollateralToExistingCup() public depositSingleAssets {
+        // Arrange
+        vm.startPrank(USER);
+        vm.expectRevert(DeCup.DeCup__NotAllowedToken.selector);
+        s_deCup.addTokenCollateralToExistingCup(address(s_failingMockToken), 5e6, 0);
+        vm.stopPrank();
     }
 
     /**
@@ -330,8 +387,10 @@ contract DeCupTest is Test {
         // Arrange
         // Act
         vm.startPrank(USER);
+        uint256 userNftBalance = s_deCup.balanceOf(USER);
         uint256 tokenId = 0; // First minted token will have ID 0
         s_deCup.burn(tokenId); // Burn NFT to withdraw all collateral
+        uint256 userNftBalanceAfterBurn = s_deCup.balanceOf(USER);
         vm.stopPrank();
 
         // Assert
@@ -339,6 +398,8 @@ contract DeCupTest is Test {
         assertEq(IERC20Metadata(s_mockTokenWbtc).balanceOf(address(s_deCup)), 0);
         assertEq(IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup)), 0);
         assertEq(address(s_deCup).balance, 0);
+        assert(userNftBalance > userNftBalanceAfterBurn);
+        assertEq(userNftBalanceAfterBurn, 0);
     }
 
     /**
@@ -426,5 +487,96 @@ contract DeCupTest is Test {
     function testDepositdNativeCurrencyMintedTokenURI() public depositMultiAssets {
         // Arrange / Act
         assertEq(keccak256(bytes(s_nativeDepositTokenURI)), keccak256(bytes(s_deCup.tokenURI(0))));
+    }
+
+    /**
+     * @notice Tests that the TCL is correctly calculated for a native currency deposit
+     * @dev Verifies that depositing native currency and ERC20 tokens results in the expected TCL
+     */
+    function testGetTokenIdTCL() public {
+        // Arrange
+        uint256 amount = 1 ether;
+        uint256 tokenId = 0;
+
+        // Act
+        vm.prank(USER);
+        (bool success,) = address(s_deCup).call{value: amount}("");
+        uint256 tcl = s_deCup.getTokenIdTCL(tokenId);
+
+        // Assert
+        assert(success);
+        assert(tcl > 0);
+    }
+
+    /**
+     * @notice Tests that the TCL is correctly calculated for a native currency deposit
+     * @dev Verifies that depositing native currency and ERC20 tokens results in the expected TCL
+     */
+    function testGetAssetTokenIdTCL() public depositSingleAssets {
+        // Arrange
+        uint256 depositUsdcAmount = 50e6;
+        // ACT
+        uint256 tcl = s_deCup.getTokenIdTCL(0);
+        uint256 usdcValue = s_deCup.getUsdcUSDValue(address(s_mockTokenUsdc), depositUsdcAmount);
+
+        // Assert
+        assertEq(tcl, usdcValue); //50000 000 000 000 000 000 000
+    }
+
+    /**
+     * @notice Tests that the NFT owner is correctly set to the user
+     * @dev Verifies that the NFT owner is correctly set to the user after depositing native currency
+     */
+    function testCollateralNftOwner() public {
+        // Arrange
+        uint256 amount = 1 ether;
+        uint256 tokenId = 0;
+
+        // Act
+        vm.prank(USER);
+        (bool success,) = address(s_deCup).call{value: amount}("");
+        address owner = s_deCup.ownerOf(tokenId);
+
+        // Assert
+        assert(success);
+        assertEq(owner, USER);
+    }
+
+    /**
+     * @notice Tests that the token is listed for sale
+     * @dev Verifies that the token is listed for sale after listing
+     */
+    function testListForSale() public {
+        // Arrange
+        uint256 tokenId = 0;
+
+        // Act
+        vm.startPrank(USER);
+        (bool success,) = address(s_deCup).call{value: 1 ether}("");
+        s_deCup.listForSale(tokenId);
+
+        // Assert
+        assert(success);
+        assert(s_deCup.getIsListedForSale(tokenId));
+    }
+
+    /**
+     * @notice Tests that the token is removed from sale
+     * @dev Verifies that the token is removed from sale after removing
+     */
+    function testRemoveFromSale() public {
+        // Arrange
+        uint256 tokenId = 0;
+
+        // Act
+        vm.startPrank(USER);
+        (bool success,) = address(s_deCup).call{value: 1 ether}("");
+        s_deCup.listForSale(tokenId);
+        s_deCup.removeFromSale(tokenId);
+        vm.stopPrank();
+
+        // Assert
+        assert(success);
+        assert(!s_deCup.getIsListedForSale(tokenId));
     }
 }
