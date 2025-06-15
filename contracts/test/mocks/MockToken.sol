@@ -9,11 +9,18 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  * @notice This is a simple ERC20 contract with 100% test coverage example
  */
 contract MockToken is ERC20 {
-    constructor(string memory name, string memory symbol, address initialAccount, uint256 initialBalance)
+    uint8 s_decimal;
+
+    constructor(string memory name, string memory symbol, address initialAccount, uint256 initialBalance, uint8 decimal)
         payable
         ERC20(name, symbol)
     {
+        s_decimal = decimal;
         _mint(initialAccount, initialBalance);
+    }
+
+    function decimals() public view override returns (uint8) {
+        return s_decimal;
     }
 }
 

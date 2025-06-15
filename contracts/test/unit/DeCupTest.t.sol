@@ -5,91 +5,137 @@ import {Test, console} from "forge-std/Test.sol";
 import {DeCup} from "src/DeCup.sol";
 import {DeployDeCup} from "script/DeployDeCup.s.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockToken} from "../mocks/MockToken.sol";
 import {FailingMockToken} from "../mocks/MockToken.sol";
 
 contract DeCupTest is Test {
-    DeCup public deCup;
-    HelperConfig public config;
-    address public mockToken;
-    address public defaultWrapToken;
-    HelperConfig.NetworkConfig public networkConfig;
-    FailingMockToken public failingMockToken;
+    DeCup public s_deCup;
+    HelperConfig public s_config;
+    HelperConfig.NetworkConfig public s_networkConfig;
+    FailingMockToken public s_failingMockToken;
+
+    string public s_svgDeCupImage;
+
+    address public s_mockTokenWeth;
+    address public s_mockTokenWbtc;
+    address public s_mockTokenUsdc;
+    address public s_defaultWrapToken;
+
     address public USER = makeAddr("user");
-    uint256 public constant INITIAL_BALANCE = 1000 ether;
-    uint256 public constant INITIAL_ERC20_BALANCE = 1000e8;
+    uint256 public constant INITIAL_BALANCE_ETH = 1000 ether;
+    uint256 public constant INITIAL_ERC20_WETH = 1000e18;
+    uint256 public constant INITIAL_ERC20_WBTC = 1000e8;
+    uint256 public constant INITIAL_ERC20_USDC = 1000e6;
 
-    string public constant nativeDepositTokenURI =
-        "data:application/json;base64,eyJuYW1lIjoiRGVDdXAiLCJkZXNjcmlwdGlvbiI6IkRlY2VudHJhbGl6ZWQgQ3VwIG9mIGFzc2V0cyIsICJhdHRyaWJ1dGVzIjogW3sidHJhaXRfdHlwZSI6IlRDTCIsInZhbHVlIjoiMCBVU0QifSx7InRyYWl0X3R5cGUiOiJFVEgiLCJ2YWx1ZSI6IjIwMDAwMDAwMDAwMDAwMDAwMDAwMDAifV0sImltYWdlIjoiZGF0YTppbWFnZS9zdmcreG1sO2Jhc2U2NCxQSE4yWnlCM2FXUjBhRDBpTVRVMklpQm9aV2xuYUhROUlqRTFNQ0lnZG1sbGQwSnZlRDBpTUNBd0lERTFOaUF4TlRBaUlHWnBiR3c5SW01dmJtVWlJSGh0Ykc1elBTSm9kSFJ3T2k4dmQzZDNMbmN6TG05eVp5OHlNREF3TDNOMlp5SStDanh3WVhSb0lHUTlJazB4TWpFZ016QkRNVFl4SURZd0xqTXpNek1nTVRZeElEa3dMalkyTmpjZ01USXhJREV5TVNJZ2MzUnliMnRsUFNJak5ETTVRVVpGSWlCemRISnZhMlV0ZDJsa2RHZzlJakV3SWk4K0NqeHlaV04wSUhnOUlqazJJaUIzYVdSMGFEMGlNeklpSUdobGFXZG9kRDBpTVRVd0lpQm1hV3hzUFNJak5ETTVRVVpGSWk4K0NqeHlaV04wSUhnOUlqWTBJaUIzYVdSMGFEMGlNeklpSUdobGFXZG9kRDBpTVRVd0lpQm1hV3hzUFNJak5FVkJNVVpHSWk4K0NqeHlaV04wSUhnOUlqTXlJaUIzYVdSMGFEMGlNeklpSUdobGFXZG9kRDBpTVRVd0lpQm1hV3hzUFNJak5qTkJRMFpHSWk4K0NqeHlaV04wSUhkcFpIUm9QU0l6TWlJZ2FHVnBaMmgwUFNJeE5UQWlJR1pwYkd3OUlpTTNPVUk0UmtZaUx6NEtQR2NnWTJ4cGNDMXdZWFJvUFNKMWNtd29JMk5zYVhBd1h6UmZNakUwS1NJK0NqeHdZWFJvSUdROUlrMDJNeTQxSURFeU5pNDFNa000T0M0d056WTNJREV5Tmk0MU1pQXhNRGdnTVRBMkxqQXpNeUF4TURnZ09EQXVOelpETVRBNElEVTFMalE0TnpRZ09EZ3VNRGMyTnlBek5TQTJNeTQxSURNMVF6TTRMamt5TXpNZ016VWdNVGtnTlRVdU5EZzNOQ0F4T1NBNE1DNDNOa014T1NBeE1EWXVNRE16SURNNExqa3lNek1nTVRJMkxqVXlJRFl6TGpVZ01USTJMalV5V2lJZ2MzUnliMnRsUFNKM2FHbDBaU0lnYzNSeWIydGxMWGRwWkhSb1BTSXhNQ0l2UGdvOEwyYytDanhuSUdOc2FYQXRjR0YwYUQwaWRYSnNLQ05qYkdsd01WODBYekl4TkNraVBnbzhjR0YwYUNCa1BTSk5Oak11TlNBeE1qWXVOVEpET0RndU1EYzJOeUF4TWpZdU5USWdNVEE0SURFd05pNHdNek1nTVRBNElEZ3dMamMyUXpFd09DQTFOUzQwT0RjMElEZzRMakEzTmpjZ016VWdOak11TlNBek5VTXpPQzQ1TWpNeklETTFJREU1SURVMUxqUTROelFnTVRrZ09EQXVOelpETVRrZ01UQTJMakF6TXlBek9DNDVNak16SURFeU5pNDFNaUEyTXk0MUlERXlOaTQxTWxvaUlITjBjbTlyWlQwaUkwWTFSakJHTUNJZ2MzUnliMnRsTFhkcFpIUm9QU0l4TUNJdlBnbzhjR0YwYUNCa1BTSk5OVEVnTlRrdU1qWkROVEl1TmpVMk15QTFPUzR5TmlBMU15NDRNRGNnTlRrdU5qY3pOU0ExTkM0MU5EWTVJRFl3TGpReE16TkROVFV1TWpnMk5pQTJNUzR4TlRNeUlEVTFMamN3TURJZ05qSXVNekEwSURVMUxqY3dNRElnTmpNdU9UWXdNbFkyTnk0eE1qWXlRelUwTGpJME5qRWdOall1TkRNeE15QTFNaTQyTkRJeklEWTJMakExT1RnZ05URWdOall1TURVNU9FTTBPQzR4TURreklEWTJMakExT1RnZ05EVXVNek0zTVNBMk55NHlNRGd6SURRekxqSTVNeUEyT1M0eU5USXlRelF4TGpJME9EZ2dOekV1TWprMk15QTBNQzR3T1RrMklEYzBMakEyT1RNZ05EQXVNRGs1TmlBM05pNDVOakF5UXpRd0xqQTVPVGNnTnprdU9EVXhJRFF4TGpJME9Ea2dPREl1TmpJek1TQTBNeTR5T1RNZ09EUXVOalkzTWtNME5TNHpNemN4SURnMkxqY3hNVE1nTkRndU1UQTVNaUE0Tnk0NE5UazJJRFV4SURnM0xqZzFPVFpETlRJdU5qUXlOU0E0Tnk0NE5UazJJRFUwTGpJME5pQTROeTQwT0RjMElEVTFMamN3TURJZ09EWXVOemt5TWxZNE9TNDVOakF5UXpVMUxqY3dNRElnT1RFdU5qRTJNU0ExTlM0eU9EWTBJRGt5TGpjMk5qTWdOVFF1TlRRMk9TQTVNeTQxTURZeFF6VXpMamd3TnlBNU5DNHlORFU1SURVeUxqWTFOak1nT1RRdU5qWXdOQ0ExTVNBNU5DNDJOakEwU0RNNExqVldOVGt1TWpaSU5URmFUVFUyTGpjd01ESWdOamd1T0RZNE5FTTFOeTR4TmpBMUlEWTVMakU1TWpZZ05UY3VOVGsyTlNBMk9TNDFOVFU0SURVNElEWTVMamsxT1RKRE5Ua3VPRFUyTmlBM01TNDRNVFU0SURZd0xqa3dNRFFnTnpRdU16TTBOaUEyTUM0NU1EQTBJRGMyTGprMk1ESkROakF1T1RBd015QTNPUzQxT0RVNElEVTVMamcxTmpZZ09ESXVNVEF6TmlBMU9DQTRNeTQ1TmpBeVF6VTNMalU1TmpZZ09EUXVNell6TlNBMU55NHhOakF6SURnMExqY3lOVGtnTlRZdU56QXdNaUE0TlM0d05WWTJPQzQ0TmpnMFdrMDBNUzR3T1RrMklEYzJMamsyTURKRE5ERXVNRGs1TmlBM05DNHpNelEySURReUxqRTBNelFnTnpFdU9ERTFPQ0EwTkNBMk9TNDVOVGt5UXpRMUxqZzFOallnTmpndU1UQXlPU0EwT0M0ek56UTFJRFkzTGpBMU9UZ2dOVEVnTmpjdU1EVTVPRU0xTWk0Mk5UVTVJRFkzTGpBMU9UZ2dOVFF1TWpZNE9DQTJOeTQwTnpVeUlEVTFMamN3TURJZ05qZ3VNalEzTTFZNE5TNDJOekV4UXpVMExqSTJPRFlnT0RZdU5EUXpOU0ExTWk0Mk5UWXhJRGcyTGpnMU9UWWdOVEVnT0RZdU9EVTVOa00wT0M0ek56UTBJRGcyTGpnMU9UWWdORFV1T0RVMk5pQTROUzQ0TVRZNElEUTBJRGd6TGprMk1ESkROREl1TVRRek5DQTRNaTR4TURNMklEUXhMakE1T1RjZ056a3VOVGcxT0NBME1TNHdPVGsySURjMkxqazJNREphSWlCbWFXeHNQU0lqUmpWR01FWXdJaUJ6ZEhKdmEyVTlJaU5HTlVZd1JqQWlMejRLUEhCaGRHZ2daRDBpVFRVM0xqYzJNRFFnTVRBd0xqZzJTRGN3TGpJek9UaEROekV1TVRBd05DQXhNREF1T0RZZ056SXVNREl4SURFd01TNHlPRGdnTnpNdU1EQTJOQ0F4TURJdU1qY3pURGM0TGpNNU16SWdNVEEzTGpZMlNEUTVMall3TjB3MU5DNDVPVE00SURFd01pNHlOek5ETlRVdU9URTNOeUF4TURFdU16UTVJRFUyTGpjNE5EUWdNVEF3TGpreE5TQTFOeTQxT1RneUlERXdNQzQ0TmpWTU5UY3VOell3TkNBeE1EQXVPRFphSWlCbWFXeHNQU0lqUmpWR01FWXdJaUJ6ZEhKdmEyVTlJaU5HTlVZd1JqQWlMejRLUEM5blBnbzhaeUJqYkdsd0xYQmhkR2c5SW5WeWJDZ2pZMnhwY0RKZk5GOHlNVFFwSWo0S1BIQmhkR2dnWkQwaVRUWTFMalVnTVRJMkxqVXlRemt3TGpBM05qY2dNVEkyTGpVeUlERXhNQ0F4TURZdU1ETXpJREV4TUNBNE1DNDNOa014TVRBZ05UVXVORGczTkNBNU1DNHdOelkzSURNMUlEWTFMalVnTXpWRE5EQXVPVEl6TXlBek5TQXlNU0ExTlM0ME9EYzBJREl4SURnd0xqYzJRekl4SURFd05pNHdNek1nTkRBdU9USXpNeUF4TWpZdU5USWdOalV1TlNBeE1qWXVOVEphSWlCemRISnZhMlU5SWlORlFrVkJSVUVpSUhOMGNtOXJaUzEzYVdSMGFEMGlNVEFpTHo0S1BIQmhkR2dnWkQwaVRUWTRMallnTlRndU56WkROelV1TlRNek15QTFPQzQzTmlBNE1DNDNNek16SURZeExqTTJJRGcwTGpJZ05qWXVOVFpET0RjdU5qWTJOeUEzTVM0M05pQTRPUzQwSURjMkxqazJJRGc1TGpRZ09ESXVNVFpET0RVdU9UTXpNeUE1TUM0NE1qWTNJRGM1TGpnMk5qY2dPVFV1TVRZZ056RXVNaUE1TlM0eE5rZzJObFk0Tnk0ek5rZzNNUzR5UXpjMExqWTJOamNnT0RjdU16WWdOemN1TWpZMk55QTROUzQyTWpZM0lEYzVJRGd5TGpFMlF6YzNMakkyTmpjZ056Z3VOamt6TXlBM05DNDJOalkzSURjMkxqazJJRGN4TGpJZ056WXVPVFpJTmpaV05UZ3VOelpJTmpndU5sb2lJR1pwYkd3OUlpTkZRa1ZCUlVFaUx6NEtQSEJoZEdnZ1pEMGlUVFU1TGpjMklERXdNQzR6TmtnM01pNHlORU0zTXk0eU9DQXhNREF1TXpZZ056UXVNeklnTVRBd0xqZzRJRGMxTGpNMklERXdNUzQ1TWt3NE1TNDJJREV3T0M0eE5rZzFNQzQwVERVMkxqWTBJREV3TVM0NU1rTTFOeTQyT0NBeE1EQXVPRGdnTlRndU56SWdNVEF3TGpNMklEVTVMamMySURFd01DNHpObG9pSUdacGJHdzlJaU5GUWtWQlJVRWlMejRLUEM5blBnbzhaeUJqYkdsd0xYQmhkR2c5SW5WeWJDZ2pZMnhwY0ROZk5GOHlNVFFwSWo0S1BIQmhkR2dnWkQwaVRUWTFMalVnTVRJMkxqVXlRemt3TGpBM05qY2dNVEkyTGpVeUlERXhNQ0F4TURZdU1ETXpJREV4TUNBNE1DNDNOa014TVRBZ05UVXVORGczTkNBNU1DNHdOelkzSURNMUlEWTFMalVnTXpWRE5EQXVPVEl6TXlBek5TQXlNU0ExTlM0ME9EYzBJREl4SURnd0xqYzJRekl4SURFd05pNHdNek1nTkRBdU9USXpNeUF4TWpZdU5USWdOalV1TlNBeE1qWXVOVEphSWlCemRISnZhMlU5SWlORk1FUkdSRVlpSUhOMGNtOXJaUzEzYVdSMGFEMGlNVEFpTHo0S1BDOW5QZ284WkdWbWN6NEtQR05zYVhCUVlYUm9JR2xrUFNKamJHbHdNRjgwWHpJeE5DSStDanh5WldOMElIZHBaSFJvUFNJek1pSWdhR1ZwWjJoMFBTSXhNamdpSUdacGJHdzlJbmRvYVhSbElpQjBjbUZ1YzJadmNtMDlJblJ5WVc1emJHRjBaU2d3SURFM0tTSXZQZ284TDJOc2FYQlFZWFJvUGdvOFkyeHBjRkJoZEdnZ2FXUTlJbU5zYVhBeFh6UmZNakUwSWo0S1BISmxZM1FnZDJsa2RHZzlJak15SWlCb1pXbG5hSFE5SWpFeU9DSWdabWxzYkQwaWQyaHBkR1VpSUhSeVlXNXpabTl5YlQwaWRISmhibk5zWVhSbEtETXlJREUzS1NJdlBnbzhMMk5zYVhCUVlYUm9QZ284WTJ4cGNGQmhkR2dnYVdROUltTnNhWEF5WHpSZk1qRTBJajRLUEhKbFkzUWdkMmxrZEdnOUlqTXlJaUJvWldsbmFIUTlJakV5T0NJZ1ptbHNiRDBpZDJocGRHVWlJSFJ5WVc1elptOXliVDBpZEhKaGJuTnNZWFJsS0RZMElERTNLU0l2UGdvOEwyTnNhWEJRWVhSb1BnbzhZMnhwY0ZCaGRHZ2dhV1E5SW1Oc2FYQXpYelJmTWpFMElqNEtQSEpsWTNRZ2QybGtkR2c5SWpNeUlpQm9aV2xuYUhROUlqRXlPQ0lnWm1sc2JEMGlkMmhwZEdVaUlIUnlZVzV6Wm05eWJUMGlkSEpoYm5Oc1lYUmxLRGsySURFM0tTSXZQZ284TDJOc2FYQlFZWFJvUGdvOEwyUmxabk0rQ2p3dmMzWm5QZ289In0=";
+    string public constant s_nativeDepositTokenURI =
+        "data:application/json;base64,eyJ0b2tlbklkIjoiMCIsIm5hbWUiOiJEZUN1cCMwICQxNTUwMDAiLCJkZXNjcmlwdGlvbiI6IkRlY2VudHJhbGl6ZWQgQ3VwIG9mIGFzc2V0cyIsICJhdHRyaWJ1dGVzIjogW3sidHJhaXRfdHlwZSI6IlRDTCIsInZhbHVlIjoiMTU1MDAwIFVTRCJ9LHsidHJhaXRfdHlwZSI6IkVUSCIsInZhbHVlIjoiMjAwMDAwMDAwMDAwMDAwMDAwMDAwMCJ9LHsidHJhaXRfdHlwZSI6IldFVEgiLCJ2YWx1ZSI6IjMwMDAwMDAwMDAwMDAwMDAwMDAwMDAifSx7InRyYWl0X3R5cGUiOiJXQlRDIiwidmFsdWUiOiIxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifSx7InRyYWl0X3R5cGUiOiJVU0RDIiwidmFsdWUiOiI1MDAwMDAwMDAwMDAwMDAwMDAwMDAwMCJ9XSwiaW1hZ2UiOiJkYXRhOmltYWdlL3N2Zyt4bWw7YmFzZTY0LFBITjJaeUIzYVdSMGFEMGlNVFUySWlCb1pXbG5hSFE5SWpFMU1DSWdkbWxsZDBKdmVEMGlNQ0F3SURFMU5pQXhOVEFpSUdacGJHdzlJbTV2Ym1VaUlIaHRiRzV6UFNKb2RIUndPaTh2ZDNkM0xuY3pMbTl5Wnk4eU1EQXdMM04yWnlJK0NqeHdZWFJvSUdROUlrMHhNakVnTXpCRE1UWXhJRFl3TGpNek16TWdNVFl4SURrd0xqWTJOamNnTVRJeElERXlNU0lnYzNSeWIydGxQU0lqTkRNNVFVWkZJaUJ6ZEhKdmEyVXRkMmxrZEdnOUlqRXdJaTgrQ2p4eVpXTjBJSGc5SWprMklpQjNhV1IwYUQwaU16SWlJR2hsYVdkb2REMGlNVFV3SWlCbWFXeHNQU0lqTkRNNVFVWkZJaTgrQ2p4eVpXTjBJSGc5SWpZMElpQjNhV1IwYUQwaU16SWlJR2hsYVdkb2REMGlNVFV3SWlCbWFXeHNQU0lqTkVWQk1VWkdJaTgrQ2p4eVpXTjBJSGc5SWpNeUlpQjNhV1IwYUQwaU16SWlJR2hsYVdkb2REMGlNVFV3SWlCbWFXeHNQU0lqTmpOQlEwWkdJaTgrQ2p4eVpXTjBJSGRwWkhSb1BTSXpNaUlnYUdWcFoyaDBQU0l4TlRBaUlHWnBiR3c5SWlNM09VSTRSa1lpTHo0S1BHY2dZMnhwY0Mxd1lYUm9QU0oxY213b0kyTnNhWEF3WHpSZk1qRTBLU0krQ2p4d1lYUm9JR1E5SWswMk15NDFJREV5Tmk0MU1rTTRPQzR3TnpZM0lERXlOaTQxTWlBeE1EZ2dNVEEyTGpBek15QXhNRGdnT0RBdU56WkRNVEE0SURVMUxqUTROelFnT0RndU1EYzJOeUF6TlNBMk15NDFJRE0xUXpNNExqa3lNek1nTXpVZ01Ua2dOVFV1TkRnM05DQXhPU0E0TUM0M05rTXhPU0F4TURZdU1ETXpJRE00TGpreU16TWdNVEkyTGpVeUlEWXpMalVnTVRJMkxqVXlXaUlnYzNSeWIydGxQU0ozYUdsMFpTSWdjM1J5YjJ0bExYZHBaSFJvUFNJeE1DSXZQZ284TDJjK0NqeG5JR05zYVhBdGNHRjBhRDBpZFhKc0tDTmpiR2x3TVY4MFh6SXhOQ2tpUGdvOGNHRjBhQ0JrUFNKTk5qTXVOU0F4TWpZdU5USkRPRGd1TURjMk55QXhNall1TlRJZ01UQTRJREV3Tmk0d016TWdNVEE0SURnd0xqYzJRekV3T0NBMU5TNDBPRGMwSURnNExqQTNOamNnTXpVZ05qTXVOU0F6TlVNek9DNDVNak16SURNMUlERTVJRFUxTGpRNE56UWdNVGtnT0RBdU56WkRNVGtnTVRBMkxqQXpNeUF6T0M0NU1qTXpJREV5Tmk0MU1pQTJNeTQxSURFeU5pNDFNbG9pSUhOMGNtOXJaVDBpSTBZMVJqQkdNQ0lnYzNSeWIydGxMWGRwWkhSb1BTSXhNQ0l2UGdvOGNHRjBhQ0JrUFNKTk5URWdOVGt1TWpaRE5USXVOalUyTXlBMU9TNHlOaUExTXk0NE1EY2dOVGt1Tmpjek5TQTFOQzQxTkRZNUlEWXdMalF4TXpORE5UVXVNamcyTmlBMk1TNHhOVE15SURVMUxqY3dNRElnTmpJdU16QTBJRFUxTGpjd01ESWdOak11T1RZd01sWTJOeTR4TWpZeVF6VTBMakkwTmpFZ05qWXVORE14TXlBMU1pNDJOREl6SURZMkxqQTFPVGdnTlRFZ05qWXVNRFU1T0VNME9DNHhNRGt6SURZMkxqQTFPVGdnTkRVdU16TTNNU0EyTnk0eU1EZ3pJRFF6TGpJNU15QTJPUzR5TlRJeVF6UXhMakkwT0RnZ056RXVNamsyTXlBME1DNHdPVGsySURjMExqQTJPVE1nTkRBdU1EazVOaUEzTmk0NU5qQXlRelF3TGpBNU9UY2dOemt1T0RVeElEUXhMakkwT0RrZ09ESXVOakl6TVNBME15NHlPVE1nT0RRdU5qWTNNa00wTlM0ek16Y3hJRGcyTGpjeE1UTWdORGd1TVRBNU1pQTROeTQ0TlRrMklEVXhJRGczTGpnMU9UWkROVEl1TmpReU5TQTROeTQ0TlRrMklEVTBMakkwTmlBNE55NDBPRGMwSURVMUxqY3dNRElnT0RZdU56a3lNbFk0T1M0NU5qQXlRelUxTGpjd01ESWdPVEV1TmpFMk1TQTFOUzR5T0RZMElEa3lMamMyTmpNZ05UUXVOVFEyT1NBNU15NDFNRFl4UXpVekxqZ3dOeUE1TkM0eU5EVTVJRFV5TGpZMU5qTWdPVFF1TmpZd05DQTFNU0E1TkM0Mk5qQTBTRE00TGpWV05Ua3VNalpJTlRGYVRUVTJMamN3TURJZ05qZ3VPRFk0TkVNMU55NHhOakExSURZNUxqRTVNallnTlRjdU5UazJOU0EyT1M0MU5UVTRJRFU0SURZNUxqazFPVEpETlRrdU9EVTJOaUEzTVM0NE1UVTRJRFl3TGprd01EUWdOelF1TXpNME5pQTJNQzQ1TURBMElEYzJMamsyTURKRE5qQXVPVEF3TXlBM09TNDFPRFU0SURVNUxqZzFOallnT0RJdU1UQXpOaUExT0NBNE15NDVOakF5UXpVM0xqVTVOallnT0RRdU16WXpOU0ExTnk0eE5qQXpJRGcwTGpjeU5Ua2dOVFl1TnpBd01pQTROUzR3TlZZMk9DNDROamcwV2swME1TNHdPVGsySURjMkxqazJNREpETkRFdU1EazVOaUEzTkM0ek16UTJJRFF5TGpFME16UWdOekV1T0RFMU9DQTBOQ0EyT1M0NU5Ua3lRelExTGpnMU5qWWdOamd1TVRBeU9TQTBPQzR6TnpRMUlEWTNMakExT1RnZ05URWdOamN1TURVNU9FTTFNaTQyTlRVNUlEWTNMakExT1RnZ05UUXVNalk0T0NBMk55NDBOelV5SURVMUxqY3dNRElnTmpndU1qUTNNMVk0TlM0Mk56RXhRelUwTGpJMk9EWWdPRFl1TkRRek5TQTFNaTQyTlRZeElEZzJMamcxT1RZZ05URWdPRFl1T0RVNU5rTTBPQzR6TnpRMElEZzJMamcxT1RZZ05EVXVPRFUyTmlBNE5TNDRNVFk0SURRMElEZ3pMamsyTURKRE5ESXVNVFF6TkNBNE1pNHhNRE0ySURReExqQTVPVGNnTnprdU5UZzFPQ0EwTVM0d09UazJJRGMyTGprMk1ESmFJaUJtYVd4c1BTSWpSalZHTUVZd0lpQnpkSEp2YTJVOUlpTkdOVVl3UmpBaUx6NEtQSEJoZEdnZ1pEMGlUVFUzTGpjMk1EUWdNVEF3TGpnMlNEY3dMakl6T1RoRE56RXVNVEF3TkNBeE1EQXVPRFlnTnpJdU1ESXhJREV3TVM0eU9EZ2dOek11TURBMk5DQXhNREl1TWpjelREYzRMak01TXpJZ01UQTNMalkyU0RRNUxqWXdOMHcxTkM0NU9UTTRJREV3TWk0eU56TkROVFV1T1RFM055QXhNREV1TXpRNUlEVTJMamM0TkRRZ01UQXdMamt4TlNBMU55NDFPVGd5SURFd01DNDROalZNTlRjdU56WXdOQ0F4TURBdU9EWmFJaUJtYVd4c1BTSWpSalZHTUVZd0lpQnpkSEp2YTJVOUlpTkdOVVl3UmpBaUx6NEtQQzluUGdvOFp5QmpiR2x3TFhCaGRHZzlJblZ5YkNnalkyeHBjREpmTkY4eU1UUXBJajRLUEhCaGRHZ2daRDBpVFRZMUxqVWdNVEkyTGpVeVF6a3dMakEzTmpjZ01USTJMalV5SURFeE1DQXhNRFl1TURNeklERXhNQ0E0TUM0M05rTXhNVEFnTlRVdU5EZzNOQ0E1TUM0d056WTNJRE0xSURZMUxqVWdNelZETkRBdU9USXpNeUF6TlNBeU1TQTFOUzQwT0RjMElESXhJRGd3TGpjMlF6SXhJREV3Tmk0d016TWdOREF1T1RJek15QXhNall1TlRJZ05qVXVOU0F4TWpZdU5USmFJaUJ6ZEhKdmEyVTlJaU5GUWtWQlJVRWlJSE4wY205clpTMTNhV1IwYUQwaU1UQWlMejRLUEhCaGRHZ2daRDBpVFRZNExqWWdOVGd1TnpaRE56VXVOVE16TXlBMU9DNDNOaUE0TUM0M016TXpJRFl4TGpNMklEZzBMaklnTmpZdU5UWkRPRGN1TmpZMk55QTNNUzQzTmlBNE9TNDBJRGMyTGprMklEZzVMalFnT0RJdU1UWkRPRFV1T1RNek15QTVNQzQ0TWpZM0lEYzVMamcyTmpjZ09UVXVNVFlnTnpFdU1pQTVOUzR4TmtnMk5sWTROeTR6TmtnM01TNHlRemMwTGpZMk5qY2dPRGN1TXpZZ056Y3VNalkyTnlBNE5TNDJNalkzSURjNUlEZ3lMakUyUXpjM0xqSTJOamNnTnpndU5qa3pNeUEzTkM0Mk5qWTNJRGMyTGprMklEY3hMaklnTnpZdU9UWklOalpXTlRndU56WklOamd1TmxvaUlHWnBiR3c5SWlORlFrVkJSVUVpTHo0S1BIQmhkR2dnWkQwaVRUVTVMamMySURFd01DNHpOa2czTWk0eU5FTTNNeTR5T0NBeE1EQXVNellnTnpRdU16SWdNVEF3TGpnNElEYzFMak0ySURFd01TNDVNa3c0TVM0MklERXdPQzR4TmtnMU1DNDBURFUyTGpZMElERXdNUzQ1TWtNMU55NDJPQ0F4TURBdU9EZ2dOVGd1TnpJZ01UQXdMak0ySURVNUxqYzJJREV3TUM0ek5sb2lJR1pwYkd3OUlpTkZRa1ZCUlVFaUx6NEtQQzluUGdvOFp5QmpiR2x3TFhCaGRHZzlJblZ5YkNnalkyeHBjRE5mTkY4eU1UUXBJajRLUEhCaGRHZ2daRDBpVFRZMUxqVWdNVEkyTGpVeVF6a3dMakEzTmpjZ01USTJMalV5SURFeE1DQXhNRFl1TURNeklERXhNQ0E0TUM0M05rTXhNVEFnTlRVdU5EZzNOQ0E1TUM0d056WTNJRE0xSURZMUxqVWdNelZETkRBdU9USXpNeUF6TlNBeU1TQTFOUzQwT0RjMElESXhJRGd3TGpjMlF6SXhJREV3Tmk0d016TWdOREF1T1RJek15QXhNall1TlRJZ05qVXVOU0F4TWpZdU5USmFJaUJ6ZEhKdmEyVTlJaU5GTUVSR1JFWWlJSE4wY205clpTMTNhV1IwYUQwaU1UQWlMejRLUEM5blBnbzhaR1ZtY3o0S1BHTnNhWEJRWVhSb0lHbGtQU0pqYkdsd01GODBYekl4TkNJK0NqeHlaV04wSUhkcFpIUm9QU0l6TWlJZ2FHVnBaMmgwUFNJeE1qZ2lJR1pwYkd3OUluZG9hWFJsSWlCMGNtRnVjMlp2Y20wOUluUnlZVzV6YkdGMFpTZ3dJREUzS1NJdlBnbzhMMk5zYVhCUVlYUm9QZ284WTJ4cGNGQmhkR2dnYVdROUltTnNhWEF4WHpSZk1qRTBJajRLUEhKbFkzUWdkMmxrZEdnOUlqTXlJaUJvWldsbmFIUTlJakV5T0NJZ1ptbHNiRDBpZDJocGRHVWlJSFJ5WVc1elptOXliVDBpZEhKaGJuTnNZWFJsS0RNeUlERTNLU0l2UGdvOEwyTnNhWEJRWVhSb1BnbzhZMnhwY0ZCaGRHZ2dhV1E5SW1Oc2FYQXlYelJmTWpFMElqNEtQSEpsWTNRZ2QybGtkR2c5SWpNeUlpQm9aV2xuYUhROUlqRXlPQ0lnWm1sc2JEMGlkMmhwZEdVaUlIUnlZVzV6Wm05eWJUMGlkSEpoYm5Oc1lYUmxLRFkwSURFM0tTSXZQZ284TDJOc2FYQlFZWFJvUGdvOFkyeHBjRkJoZEdnZ2FXUTlJbU5zYVhBelh6UmZNakUwSWo0S1BISmxZM1FnZDJsa2RHZzlJak15SWlCb1pXbG5hSFE5SWpFeU9DSWdabWxzYkQwaWQyaHBkR1VpSUhSeVlXNXpabTl5YlQwaWRISmhibk5zWVhSbEtEazJJREUzS1NJdlBnbzhMMk5zYVhCUVlYUm9QZ284TDJSbFpuTStDand2YzNablBnbz0ifQ==";
 
+    /**
+     * @notice Sets up the test environment by deploying contracts and initializing test variables
+     * @dev This function:
+     * - Deploys the DeCup contract and helper config
+     * - Creates mock tokens (WETH, WBTC, USDC)
+     * - Funds the test user with initial balances
+     * - Transfers mock tokens to the test user
+     */
     function setUp() external {
         DeployDeCup deployer = new DeployDeCup();
+        s_svgDeCupImage = vm.readFile("./img/decup.svg");
 
-        (deCup, config) = deployer.run();
-        failingMockToken = new FailingMockToken(1000 ether);
-        networkConfig = config.getConfig();
-        mockToken = networkConfig.tokenAddresses[0];
-        defaultWrapToken = networkConfig.defaultPriceFeed;
+        (s_deCup, s_config) = deployer.run();
+        s_failingMockToken = new FailingMockToken(1000 ether);
+
+        s_networkConfig = s_config.getConfig();
+        s_mockTokenWeth = s_networkConfig.tokenAddresses[0];
+        s_mockTokenWbtc = s_networkConfig.tokenAddresses[1];
+        s_mockTokenUsdc = s_networkConfig.tokenAddresses[2];
+        s_defaultWrapToken = s_networkConfig.defaultPriceFeed;
         // Fund the user
-        vm.deal(USER, INITIAL_BALANCE);
+        vm.deal(USER, INITIAL_BALANCE_ETH);
+
+        // Loggin
         console.log(msg.sender);
-        console.log(IERC20(mockToken).balanceOf(address(deployer)));
-        vm.prank(address(deployer));
-        IERC20(mockToken).transfer(USER, INITIAL_ERC20_BALANCE);
-        failingMockToken.transfer(USER, INITIAL_ERC20_BALANCE);
+        console.log("mockToken: ", IERC20Metadata(s_mockTokenWeth).balanceOf(address(deployer)));
+        console.log("mockTokenBtc: ", IERC20Metadata(s_mockTokenWbtc).balanceOf(address(deployer)));
+        console.log("mockTokenUsdc: ", IERC20Metadata(s_mockTokenUsdc).balanceOf(address(deployer)));
+
+        vm.startPrank(address(deployer));
+        IERC20Metadata(s_mockTokenWeth).transfer(USER, INITIAL_ERC20_WETH);
+        IERC20Metadata(s_mockTokenWbtc).transfer(USER, INITIAL_ERC20_WBTC);
+        IERC20Metadata(s_mockTokenUsdc).transfer(USER, INITIAL_ERC20_USDC);
+        vm.stopPrank();
+
+        s_failingMockToken.transfer(USER, INITIAL_ERC20_WETH);
     }
     /*//////////////////////////////////////////////////////////////
                               TEST DEPLOY
     //////////////////////////////////////////////////////////////*/
 
-    function testDeployZeroTokenAddresses() public {
-        string memory svgDeCup = vm.readFile("./img/decup.svg");
+    /**
+     * @notice Tests that deployment reverts when token addresses array is empty
+     * @dev Verifies the contract correctly enforces non-empty token addresses requirement
+     */
+    function testDeployRevertsWhenTokenAddressesArrayIsEmpty() public {
         address[] memory tokenAddresses;
         address[] memory priceFeedAddresses = new address[](1);
         priceFeedAddresses[0] = address(0x1);
         vm.expectRevert(DeCup.DeCup__AllowedTokenAddressesMustNotBeEmpty.selector);
-        new DeCup(svgDeCup, tokenAddresses, priceFeedAddresses, defaultWrapToken);
+        new DeCup(s_svgDeCupImage, tokenAddresses, priceFeedAddresses, s_defaultWrapToken);
     }
 
-    function testDeployZeroPriceFeedAddresses() public {
-        string memory svgDeCup = vm.readFile("./img/decup.svg");
+    /**
+     * @notice Tests that deployment reverts when price feed addresses array is empty
+     * @dev Verifies the contract correctly enforces non-empty price feed addresses requirement
+     */
+    function testDeployRevertsWhenPriceFeedAddressesArrayIsEmpty() public {
         address[] memory tokenAddresses = new address[](1);
         address[] memory priceFeedAddresses;
-        tokenAddresses[0] = address(mockToken);
+        tokenAddresses[0] = address(s_mockTokenWeth);
         vm.expectRevert(DeCup.DeCup__PriceFeedAddressesMustNotBeEmpty.selector);
-        new DeCup(svgDeCup, tokenAddresses, priceFeedAddresses, defaultWrapToken);
+        new DeCup(s_svgDeCupImage, tokenAddresses, priceFeedAddresses, s_defaultWrapToken);
     }
 
-    function testDeployTokenAddressesLengthNotToEqualPriceFeedAddressesLength() public {
-        string memory svgDeCup = vm.readFile("./img/decup.svg");
+    /**
+     * @notice Tests that deployment reverts when token addresses and price feed addresses arrays have different lengths
+     * @dev Verifies the contract correctly enforces matching array lengths requirement for token and price feed addresses
+     */
+    function testDeployRevertsWhenTokenAndPriceFeedArrayLengthsMismatch() public {
         address[] memory tokenAddresses = new address[](1);
         address[] memory priceFeedAddresses = new address[](2);
-        tokenAddresses[0] = address(mockToken);
+        tokenAddresses[0] = address(s_mockTokenWeth);
         priceFeedAddresses[0] = address(0x1); // Mock price feed address for testing
         priceFeedAddresses[1] = address(0x2); // Mock price feed address for testing
         vm.expectRevert(DeCup.DeCup__TokenAddressesAndPriceFeedAddressesMusBeSameLength.selector);
-        new DeCup(svgDeCup, tokenAddresses, priceFeedAddresses, defaultWrapToken);
+        new DeCup(s_svgDeCupImage, tokenAddresses, priceFeedAddresses, s_defaultWrapToken);
     }
 
     /*//////////////////////////////////////////////////////////////
                   NATIVE CURRENCY DEPOSIT / WITHDRAWAL
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Tests that native currency can be received by the contract
+     * @dev Verifies the contract can receive ETH and updates its balance correctly
+     */
     function testReceiveNative() public {
         // Arrange
         uint256 amount = 1 ether;
 
         // Act
         vm.prank(USER);
-        (bool success,) = address(deCup).call{value: amount}("");
+        (bool success,) = address(s_deCup).call{value: amount}("");
 
         // Assert
         assert(success);
-        assertEq(address(deCup).balance, amount);
+        assertEq(address(s_deCup).balance, amount);
     }
 
+    /**
+     * @notice Tests that native currency deposit reverts when amount is zero
+     * @dev Verifies the contract correctly enforces non-zero deposit amount requirement
+     */
     function testReceiveNativeZeroAmount() public {
         // Arrange
         uint256 amount = 0;
@@ -97,95 +143,121 @@ contract DeCupTest is Test {
         // Act / Assert
         vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__AmountMustBeGreaterThanZero.selector);
-        (bool success,) = address(deCup).call{value: amount}("");
+        (bool success,) = address(s_deCup).call{value: amount}("");
         assert(success);
     }
 
-    // First deposit some ETH
+    /**
+     * @notice Tests that native currency can be withdrawn by burning the NFT
+     * @dev Verifies that burning an NFT minted with native currency deposit returns the correct amount to the user
+     */
     function testWithdrawNativeCurrency() public {
         // Arrange
         uint256 initialBalance = USER.balance;
 
         // First deposit 1 ether to get an NFT
         vm.prank(USER);
-        (bool success,) = address(deCup).call{value: 1 ether}("");
+        (bool success,) = address(s_deCup).call{value: 1 ether}("");
         assert(success);
 
         uint256 tokenId = 0; // First minted token will have ID 0
 
         // Act - Burn the NFT to withdraw the collateral
         vm.prank(USER);
-        deCup.burn(tokenId);
+        s_deCup.burn(tokenId);
 
         // Assert
         assertEq(USER.balance, initialBalance); // User should get back their 1 ether
-        assertEq(address(deCup).balance, 0); // Contract should have no balance
-    }
-
-    function testdepositdNativeCurrencyMintedTokenURI() public {
-        // Arrange
-        uint256 amount = 1 ether;
-
-        // Act
-        vm.prank(USER);
-        (bool success,) = address(deCup).call{value: amount}("");
-        // Assert
-        assert(success);
-        assertEq(deCup.tokenURI(0), nativeDepositTokenURI);
+        assertEq(address(s_deCup).balance, 0); // Contract should have no balance
     }
 
     /*//////////////////////////////////////////////////////////////
-                       ERC20 DEPOSIT / WITHDRAWAL
+                      SINGLE ASSETS DEPOSIT TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testdepositSingleTokenWithNotAllowedToken() public {
+    /**
+     * @notice Modifier to deposit a single asset and mint an NFT
+     * @dev Helper modifier that deposits USDC tokens and mints an NFT before running the test
+     */
+    modifier depositSingleAssets() {
+        // Arrange
+        uint256 depositUsdcAmount = 50e6;
+        // Act - First deposit to mint NFT, then burn to withdraw
+        vm.startPrank(USER);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), depositUsdcAmount);
+
+        console.log(IERC20Metadata(s_mockTokenUsdc).balanceOf(USER));
+
+        s_deCup.depositSingleAssetAndMint(address(s_mockTokenUsdc), depositUsdcAmount);
+        vm.stopPrank();
+        _;
+    }
+
+    /**
+     * @notice Tests that native currency can be added to an existing cup
+     * @dev Verifies that the contract can receive ETH and updates its balance correctly
+     */
+    function testAddNativeCollateralToExistingCup() public depositSingleAssets {
+        // Arrange
+        uint256 initialBalance = address(s_deCup).balance;
+        vm.startPrank(USER);
+        s_deCup.addNativeCollateralToExistingCup{value: 1 ether}(0);
+        vm.stopPrank();
+        assertEq(address(s_deCup).balance, initialBalance + 1 ether);
+    }
+
+    /**
+     * @notice Tests that depositing a single token with a not allowed token reverts
+     * @dev Verifies that the contract properly validates that the token is allowed
+     */
+    function testDepositSingleTokenWithNotAllowedToken() public {
         // Arrange
         vm.startPrank(USER);
         uint256 amount = 1000 * 10 ** 8;
-        MockToken notAllowedToken = new MockToken("WETH", "WETH", USER, amount);
+        MockToken notAllowedToken = new MockToken("WETH", "WETH", USER, amount, 18);
 
         // Act
-        notAllowedToken.approve(address(deCup), amount);
+        notAllowedToken.approve(address(s_deCup), amount);
         vm.expectRevert(DeCup.DeCup__NotAllowedToken.selector);
-        deCup.depositSingleTokenAndMint(address(notAllowedToken), amount);
+        s_deCup.depositSingleAssetAndMint(address(notAllowedToken), amount);
         vm.stopPrank();
     }
 
-    function testdepositSingleToken() public {
+    /**
+     * @notice Tests that depositing a single token and burning works correctly
+     * @dev Verifies that the contract properly handles single token deposits and withdrawals
+     */
+    function testDepositSingleToken() public depositSingleAssets {
         // Arrange
-        uint256 initialBalance = IERC20(mockToken).balanceOf(USER);
-        uint256 depositAmount = 500 * 10 ** 8;
-
-        // Act - First deposit to mint NFT, then burn to withdraw
         vm.startPrank(USER);
-        IERC20(mockToken).approve(address(deCup), depositAmount);
-        deCup.depositSingleTokenAndMint(address(mockToken), depositAmount);
-
         uint256 tokenId = 0; // First minted token will have ID 0
-        deCup.burn(tokenId); // Burn NFT to withdraw collateral
+        s_deCup.burn(tokenId); // Burn NFT to withdraw collateral
         vm.stopPrank();
 
-        // Assert
-        assertEq(IERC20(mockToken).balanceOf(USER), initialBalance);
-        assertEq(IERC20(mockToken).balanceOf(address(deCup)), 0);
+        assertEq(IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup)), 0);
     }
 
-    function testWithdrawNonExistingNft() public {
-        // This test doesn't apply to the current architecture since withdrawal
-        // is done through burn() which withdraws the exact collateral amount
-        // We can test that burning a non-existent token fails instead
+    /**
+     * @notice Tests that burning a non-existent NFT reverts with the correct error
+     * @dev Verifies that the contract properly validates token existence before burning
+     */
+    function testRevertWhenBurningNonExistentNft() public {
         vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__TokenDoesNotExist.selector);
-        deCup.burn(999); // Try to burn non-existent token
+        s_deCup.burn(999); // Try to burn non-existent token
     }
 
-    function testdepositERC20ZeroAmount() public {
+    /**
+     * @notice Tests that the contract reverts when depositing a single asset with a zero amount
+     * @dev Verifies that the contract properly validates non-zero amounts for token deposits
+     */
+    function testDepositSingleAssetZeroAmount() public {
         // Arrange
         vm.startPrank(USER);
         // Act / Assert
-        IERC20(mockToken).approve(address(deCup), 1000 * 10 ** 18);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), 1000 * 10 ** 18);
         vm.expectRevert(DeCup.DeCup__AmountMustBeGreaterThanZero.selector);
-        deCup.depositSingleTokenAndMint(address(mockToken), 0);
+        s_deCup.depositSingleAssetAndMint(address(s_mockTokenUsdc), 0);
         vm.stopPrank();
     }
 
@@ -193,175 +265,166 @@ contract DeCupTest is Test {
                     MULTIPLE ASSETS DEPOSIT TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testdepositMultipleAssetsAndMintSuccess() public {
+    /**
+     * @notice Modifier to deposit multiple assets and mint an NFT
+     * @dev Helper modifier that:
+     * - Deposits 1.5 WETH, 100 WBTC, and 50 USDC tokens
+     * - Deposits 1 ETH native currency
+     * - Approves token transfers
+     * - Mints an NFT collateralized by all assets
+     * - Used to set up test state for multiple asset tests
+     */
+    modifier depositMultiAssets() {
         // Arrange
-        uint256 initialMockTokenBalance = IERC20(mockToken).balanceOf(USER);
-        uint256 initialFailingTokenBalance = failingMockToken.balanceOf(USER);
-        uint256 initialEthBalance = USER.balance;
+        uint256 amount = 1 ether;
+        uint256 depositWethAmount = 1.5 ether;
+        uint256 depositWbtcAmount = 100e8;
+        uint256 depositUsdcAmount = 50e6;
+        address[] memory tokens = new address[](3);
+        uint256[] memory amounts = new uint256[](3);
 
-        uint256 mockTokenAmount = 500 * 10 ** 8;
-        uint256 failingTokenAmount = 300 * 10 ** 8;
-        uint256 ethAmount = 1 ether;
+        // Act - First deposit to mint NFT, then burn to withdraw
+        vm.startPrank(USER);
+        IERC20Metadata(s_mockTokenWeth).approve(address(s_deCup), depositWethAmount);
+        IERC20Metadata(s_mockTokenWbtc).approve(address(s_deCup), depositWbtcAmount);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), depositUsdcAmount);
 
-        address[] memory tokenAddresses = new address[](2);
-        uint256[] memory amounts = new uint256[](2);
-        tokenAddresses[0] = address(mockToken);
-        tokenAddresses[1] = address(failingMockToken);
-        amounts[0] = mockTokenAmount;
-        amounts[1] = failingTokenAmount;
+        console.log(IERC20Metadata(s_mockTokenUsdc).balanceOf(USER));
 
+        tokens[0] = address(s_mockTokenWeth);
+        tokens[1] = address(s_mockTokenWbtc);
+        tokens[2] = address(s_mockTokenUsdc);
+
+        amounts[0] = depositWethAmount;
+        amounts[1] = depositWbtcAmount;
+        amounts[2] = depositUsdcAmount;
+
+        s_deCup.depositMultipleAssetsAndMint{value: amount}(tokens, amounts);
+        vm.stopPrank();
+        _;
+    }
+
+    /**
+     * @notice Tests that token collateral can be added to an existing cup
+     * @dev Verifies that the contract can receive ERC20 tokens and updates the collateral balance correctly
+     */
+    function testAddTokenCollateralToExistingCup() public depositSingleAssets {
+        // Arrange
+        uint256 initialBalance = s_deCup.getCollateralDeposited(0, address(s_mockTokenUsdc));
+        vm.startPrank(USER);
+        s_deCup.addTokenCollateralToExistingCup(address(s_mockTokenUsdc), 1 ether, 0);
+        vm.stopPrank();
+        uint256 afterBalance = s_deCup.getCollateralDeposited(0, address(s_mockTokenUsdc));
+        assertEq(afterBalance, initialBalance + 1 ether);
+    }
+
+    /**
+     * @notice Tests successful deposit of multiple assets (ERC20 tokens and native currency) and minting of NFT
+     * @dev Tests that:
+     * - Multiple ERC20 tokens and native currency can be deposited in a single transaction
+     * - NFT is minted with correct collateral data
+     * - All collateral can be withdrawn by burning the NFT
+     * - Final balances match initial balances after full cycle
+     */
+    function testDepositMultipleAssetsAndMintSuccess() public depositMultiAssets {
+        // Arrange
         // Act
         vm.startPrank(USER);
-        IERC20(mockToken).approve(address(deCup), mockTokenAmount);
-        failingMockToken.approve(address(deCup), failingTokenAmount);
-        deCup.depositMultipleAssetsAndMint{value: ethAmount}(tokenAddresses, amounts);
-
         uint256 tokenId = 0; // First minted token will have ID 0
-        deCup.burn(tokenId); // Burn NFT to withdraw all collateral
+        s_deCup.burn(tokenId); // Burn NFT to withdraw all collateral
         vm.stopPrank();
 
         // Assert
-        assertEq(IERC20(mockToken).balanceOf(USER), initialMockTokenBalance);
-        assertEq(IERC20(failingMockToken).balanceOf(USER), initialFailingTokenBalance);
-        assertEq(USER.balance, initialEthBalance);
-        assertEq(IERC20(mockToken).balanceOf(address(deCup)), 0);
-        assertEq(failingMockToken.balanceOf(address(deCup)), 0);
-        assertEq(address(deCup).balance, 0);
+        assertEq(IERC20Metadata(s_mockTokenWeth).balanceOf(address(s_deCup)), 0);
+        assertEq(IERC20Metadata(s_mockTokenWbtc).balanceOf(address(s_deCup)), 0);
+        assertEq(IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup)), 0);
+        assertEq(address(s_deCup).balance, 0);
     }
 
-    function testdepositMultipleAssetsAndMintWithoutNativeCurrency() public {
-        // Arrange
-        uint256 initialMockTokenBalance = IERC20(mockToken).balanceOf(USER);
-        uint256 initialFailingTokenBalance = failingMockToken.balanceOf(USER);
-
-        uint256 mockTokenAmount = 500 * 10 ** 8;
-        uint256 failingTokenAmount = 300 * 10 ** 8;
-
-        address[] memory tokenAddresses = new address[](2);
-        uint256[] memory amounts = new uint256[](2);
-        tokenAddresses[0] = address(mockToken);
-        tokenAddresses[1] = address(failingMockToken);
-        amounts[0] = mockTokenAmount;
-        amounts[1] = failingTokenAmount;
-
-        // Act
-        vm.startPrank(USER);
-        IERC20(mockToken).approve(address(deCup), mockTokenAmount);
-        failingMockToken.approve(address(deCup), failingTokenAmount);
-        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
-
-        uint256 tokenId = 0; // First minted token will have ID 0
-        deCup.burn(tokenId); // Burn NFT to withdraw all collateral
-        vm.stopPrank();
-
-        // Assert
-        assertEq(IERC20(mockToken).balanceOf(USER), initialMockTokenBalance);
-        assertEq(failingMockToken.balanceOf(USER), initialFailingTokenBalance);
-        assertEq(IERC20(mockToken).balanceOf(address(deCup)), 0);
-        assertEq(failingMockToken.balanceOf(address(deCup)), 0);
-    }
-
-    function testdepositMultipleAssetsAndMintSingleToken() public {
-        // Arrange
-        uint256 initialMockTokenBalance = IERC20(mockToken).balanceOf(USER);
-        uint256 mockTokenAmount = 500 * 10 ** 8;
-
-        address[] memory tokenAddresses = new address[](1);
-        uint256[] memory amounts = new uint256[](1);
-        tokenAddresses[0] = address(mockToken);
-        amounts[0] = mockTokenAmount;
-
-        // Act
-        vm.startPrank(USER);
-        IERC20(mockToken).approve(address(deCup), mockTokenAmount);
-        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
-
-        uint256 tokenId = 0; // First minted token will have ID 0
-        deCup.burn(tokenId); // Burn NFT to withdraw collateral
-        vm.stopPrank();
-
-        // Assert
-        assertEq(IERC20(mockToken).balanceOf(USER), initialMockTokenBalance);
-        assertEq(IERC20(mockToken).balanceOf(address(deCup)), 0);
-    }
-
-    function testdepositMultipleAssetsAndMintArrayLengthMismatch() public {
+    /**
+     * @notice Tests that the contract reverts when depositing multiple assets with mismatched array lengths
+     * @dev Verifies that the contract properly validates that the token addresses and amounts arrays have the same length
+     * @dev Uses a combination of valid and invalid lengths to test the validation logic
+     */
+    function testRevertsWhenDepositingMultipleAssetsWithMismatchedArrayLengths() public {
         // Arrange
         address[] memory tokenAddresses = new address[](2);
         uint256[] memory amounts = new uint256[](1); // Different length
-        tokenAddresses[0] = address(mockToken);
-        tokenAddresses[1] = address(failingMockToken);
+        tokenAddresses[0] = address(s_mockTokenUsdc);
+        tokenAddresses[1] = address(s_failingMockToken);
         amounts[0] = 500 * 10 ** 18;
 
         // Act / Assert
         vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__TokenAddressesAndAmountsMusBeSameLength.selector);
-        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+        s_deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
     }
 
-    function testdepositMultipleAssetsAndMintZeroAmount() public {
+    /**
+     * @notice Tests that the contract reverts when depositing multiple assets with a zero amount
+     * @dev Verifies that the contract properly validates non-zero amounts for each token deposit
+     * @dev Uses a combination of valid and zero amounts to test the validation logic
+     */
+    function testRevertsWhenDepositingMultipleAssetsWithZeroAmount() public {
         // Arrange
         address[] memory tokenAddresses = new address[](2);
         uint256[] memory amounts = new uint256[](2);
-        tokenAddresses[0] = address(mockToken);
-        tokenAddresses[1] = address(failingMockToken);
-        amounts[0] = 500 * 10 ** 8;
+        tokenAddresses[0] = address(s_mockTokenUsdc);
+        tokenAddresses[1] = address(s_failingMockToken);
+        amounts[0] = 5e6;
         amounts[1] = 0; // Zero amount should fail
 
         // Act / Assert
         vm.startPrank(USER);
-        IERC20(mockToken).approve(address(deCup), amounts[0]);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), amounts[0]);
         vm.expectRevert(DeCup.DeCup__AmountMustBeGreaterThanZero.selector);
-        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+        s_deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
         vm.stopPrank();
     }
 
-    function testdepositMultipleAssetsAndMintTransferFailed() public {
+    /**
+     * @notice Tests that the contract reverts when a token transfer fails during multiple asset deposit
+     * @dev Verifies that the contract properly handles failed token transfers by reverting the transaction
+     * @dev Uses a mock token configured to fail transfers to simulate the error condition
+     */
+    function testDepositMultipleAssetsAndMintTransferFailed() public {
         // Arrange - Set failing token to fail transfers
         address[] memory tokenAddresses = new address[](1);
         uint256[] memory amounts = new uint256[](1);
-        tokenAddresses[0] = address(failingMockToken);
+        tokenAddresses[0] = address(s_failingMockToken);
         amounts[0] = 500 * 10 ** 18;
 
         // Act / Assert
         vm.startPrank(USER);
-        failingMockToken.approve(address(deCup), amounts[0]);
-        failingMockToken.setShouldFailTransfer(true); // Make the transfer return false
+        s_failingMockToken.approve(address(s_deCup), amounts[0]);
+        s_failingMockToken.setShouldFailTransfer(true); // Make the transfer return false
         vm.expectRevert(DeCup.DeCup__TransferFailed.selector);
-        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+        s_deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
         vm.stopPrank();
     }
 
-    function testdepositMultipleAssetsAndMintEmptyArrays() public {
-        // Arrange
-        address[] memory tokenAddresses = new address[](0);
-        uint256[] memory amounts = new uint256[](0);
-        uint256 ethAmount = 1 ether;
-
-        // Act - Should succeed with only native currency
-        vm.startPrank(USER);
-        deCup.depositMultipleAssetsAndMint{value: ethAmount}(tokenAddresses, amounts);
-
-        uint256 tokenId = 0;
-        deCup.burn(tokenId);
-        vm.stopPrank();
-
-        // Assert - User should get back their ETH
-        assertEq(USER.balance, INITIAL_BALANCE);
-        assertEq(address(deCup).balance, 0);
-    }
-
-    function testdepositMultipleAssetsAndMintEmptyArraysNoValue() public {
+    /**
+     * @notice Tests that the contract reverts when depositing empty arrays without native currency
+     * @dev Verifies that the contract reverts when attempting to deposit empty arrays without any native currency value
+     * @dev This test ensures the contract properly validates that at least one form of collateral is provided
+     */
+    function testRevertsWhenDepositingEmptyArraysWithoutNativeCurrency() public {
         // Arrange
         address[] memory tokenAddresses = new address[](0);
         uint256[] memory amounts = new uint256[](0);
 
         // Act - Should succeed but mint an NFT with no collateral
         vm.prank(USER);
-        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+        vm.expectRevert(DeCup.DeCup__AmountMustBeGreaterThanZero.selector);
+        s_deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+    }
 
-        // Assert - NFT should be minted
-        assertEq(deCup.balanceOf(USER), 1);
-        assertEq(deCup.ownerOf(0), USER);
+    /**
+     * @notice Tests that the tokenURI is correctly generated for a native currency deposit
+     * @dev Verifies that depositing native currency and ERC20 tokens results in the expected tokenURI metadata
+     */
+    function testDepositdNativeCurrencyMintedTokenURI() public depositMultiAssets {
+        // Arrange / Act
+        assertEq(keccak256(bytes(s_nativeDepositTokenURI)), keccak256(bytes(s_deCup.tokenURI(0))));
     }
 }

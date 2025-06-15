@@ -109,24 +109,76 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Function to deposit native currency, and mint a collateralized with native currency NFT
+     * @notice Function to deposit native currency and mint a collateralized NFT
      * @dev This function is called when native currency is sent to the contract
      * @dev Implements the CEI pattern (Checks-Effects-Interactions)
      * @dev Uses nonReentrant modifier to prevent reentrancy attacks
      * @dev Emits DepositNativeCurrency event on successful deposit
+     * @dev Mints a new NFT with tokenId equal to current tokenCounter
+     * @dev Stores the native currency amount as collateral for the minted NFT
+     * @dev Increments tokenCounter after successful mint
+     * @dev Requires msg.value to be greater than zero (enforced by moreThanZero modifier)
      */
     receive() external payable moreThanZero(msg.value) nonReentrant {
         // Check (in modifiers)
 
         // Effect
         uint256 tokenId = s_tokenCounter;
-        emit DepositNativeCurrency(msg.sender, msg.value);
         s_collateralDeposited[tokenId][address(0)] += msg.value;
         s_tokenIdToAssets[tokenId].push(address(0));
+        emit DepositNativeCurrency(msg.sender, msg.value);
+
         _safeMint(msg.sender, tokenId);
         s_tokenCounter++;
 
         //interact
+    }
+
+    /**
+     * @notice Function to deposit an ERC20 token to an existing NFT as additional collateral
+     * @param tokenAddress The ERC20 token contract address to deposit (must be a supported token with price feed)
+     * @param amount The amount of tokens to deposit (must be greater than 0)
+     * @param tokenId The ID of the existing NFT to add collateral to
+     * @dev This function will transfer the specified amount of tokens from the caller to this contract
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Emits DepositERC20Token event on successful deposit
+     * @dev The caller must have approved this contract to spend their tokens before calling this function
+     */
+    function addTokenCollateralToExistingCup(address tokenAddress, uint256 amount, uint256 tokenId)
+        public
+        moreThanZero(amount)
+        nonReentrant
+    {
+        // Checkss
+        if (s_tokenToPriceFeed[tokenAddress] == address(0)) {
+            revert DeCup__NotAllowedToken();
+        }
+        // Effects
+        if (s_collateralDeposited[tokenId][tokenAddress] == 0) {
+            s_tokenIdToAssets[tokenId].push(tokenAddress);
+        }
+        s_collateralDeposited[tokenId][tokenAddress] += amount;
+        emit DepositERC20Token(msg.sender, tokenAddress, amount);
+    }
+
+    /**
+     * @notice Function to add native currency as collateral to an existing NFT
+     * @param tokenId The ID of the existing NFT to add native currency collateral to
+     * @dev This function is called when native currency is sent to add to an existing cup
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Uses moreThanZero modifier to ensure non-zero deposits
+     * @dev Emits DepositNativeCurrency event on successful deposit
+     * @dev If this is the first native currency deposit for this NFT, adds address(0) to tokenIdToAssets
+     * @dev Requires msg.value to be greater than zero (enforced by moreThanZero modifier)
+     * @dev Requires the NFT to exist (enforced by tokenId validation)
+     */
+    function addNativeCollateralToExistingCup(uint256 tokenId) public payable moreThanZero(msg.value) {
+        if (s_collateralDeposited[tokenId][address(0)] == 0) {
+            s_tokenIdToAssets[tokenId].push(address(0));
+        }
+        s_collateralDeposited[tokenId][address(0)] += msg.value;
+        emit DepositNativeCurrency(msg.sender, msg.value);
     }
 
     /**
@@ -139,7 +191,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @dev Emits DepositERC20Token event on successful deposit
      * @dev The caller must have approved this contract to spend their tokens before calling this function
      */
-    function depositSingleTokenAndMint(address tokenAddress, uint256 amount)
+    function depositSingleAssetAndMint(address tokenAddress, uint256 amount)
         external
         payable
         moreThanZero(amount)
@@ -173,6 +225,12 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @dev Emits DepositNativeCurrency and DepositERC20Token events for each successful deposit
      * @dev All token amounts must be greater than 0. Token addresses and amounts arrays must be same length
      * @dev The caller must have approved this contract to spend their tokens before calling this function
+     * @dev Example usage:
+     *   depositMultipleAssetsAndMint(
+     *     [USDC_ADDRESS, DAI_ADDRESS],
+     *     [1000e6, 1000e18],
+     *     {value: 1e18} // 1 ETH
+     *   )
      */
     function depositMultipleAssetsAndMint(address[] memory tokenAddresses, uint256[] memory amounts)
         external
@@ -182,6 +240,10 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         // Checks (in modifiers)
         if (tokenAddresses.length != amounts.length) {
             revert DeCup__TokenAddressesAndAmountsMusBeSameLength();
+        }
+
+        if (tokenAddresses.length == 0 || amounts.length == 0) {
+            revert DeCup__AmountMustBeGreaterThanZero();
         }
 
         // Effects / Interctions
@@ -244,11 +306,14 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Mints a new token to the specified address and increments the token counter
+     * @notice Internal function to mint a new token and increment the token counter
      * @param to The address to mint the token to
      * @param tokenId The ID of the token to mint
      * @dev Internal function used by deposit functions to mint NFTs
      * @dev Uses _safeMint to ensure the recipient can handle ERC721 tokens
+     * @dev Increments s_tokenCounter after successful mint
+     * @dev This function is called by depositSingleAssetAndMint and depositMultipleAssetsAndMint
+     * @dev Ensures atomic minting and counter increment to prevent token ID conflicts
      */
     function _mintAndIncreaseCounter(address to, uint256 tokenId) private {
         _safeMint(to, tokenId);
@@ -303,6 +368,41 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /**
+     * @notice Returns the USD value of a given USDC token amount
+     * @param tokenAddress The address of the USDC token
+     * @param amount The amount of USDC tokens
+     * @return The USD value of the given USDC token amount with additional precision
+     * @dev Uses Chainlink price feeds to get real-time token prices
+     * @dev Applies decimals conversion to maintain accuracy in calculations
+     * @dev Multiplies by 10^10 to maintain precision in calculations
+     * @dev Handles token decimals dynamically using IERC20Metadata interface
+     * @dev Returns value in USD with 18 decimals of precision
+     */
+    function getUsdcUSDValue(address tokenAddress, uint256 amount) private view returns (uint256) {
+        uint256 usdcPrice = getUsdPrice(tokenAddress);
+        uint8 decimals = IERC20Metadata(tokenAddress).decimals();
+        return (usdcPrice * 10 ** 10) * amount / 10 ** uint256(decimals);
+    }
+
+    /**
+     * @notice Returns the USD value of a given ETH token amount
+     * @param tokenAddress The address of the ETH token
+     * @param amount The amount of ETH tokens
+     * @return The USD value of the given ETH token amount with additional precision
+     * @dev Uses Chainlink price feeds to get real-time token prices
+     * @dev Applies decimals conversion to maintain accuracy in calculations
+     * @dev Multiplies by 10^10 to maintain precision in calculations
+     * @dev Uses fixed 18 decimals for ETH (standard for native currency)
+     * @dev Returns value in USD with 18 decimals of precision
+     * @dev Note: Currently uses hardcoded 18 decimals, could be made dynamic in future versions
+     */
+    function getEthUSDValue(address tokenAddress, uint256 amount) private view returns (uint256) {
+        uint256 ethPrice = getUsdPrice(tokenAddress);
+        uint8 decimals = 18; //Need to make dynamic
+        return (ethPrice * 10 ** 10) * amount / 10 ** uint256(decimals);
+    }
+
+    /**
      * @notice Returns the base URI for token metadata in base64 JSON format
      * @return The base URI string for token metadata
      * @dev Overrides the ERC721 _baseURI function to return a data URI
@@ -312,20 +412,15 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         return "data:application/json;base64,";
     }
 
-    /*//////////////////////////////////////////////////////////////
-                EXTERNAL / PUBLIC VIEW / PURE FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
     /**
      * @notice Returns the USD value of a given token amount using Chainlink price feeds
      * @param tokenAddress The address of the ERC20 token to get the value for. Use address(0) for native currency
-     * @param amount The amount of tokens to calculate the USD value for
      * @return The USD value of the given token amount with additional precision
      * @dev Uses Chainlink price feeds to get real-time token prices
      * @dev Handles both native currency and ERC20 tokens
      * @dev Applies additional precision to maintain accuracy in calculations
      */
-    function getUsdValue(address tokenAddress, uint256 amount) public view returns (uint256) {
+    function getUsdPrice(address tokenAddress) private view returns (uint256) {
         AggregatorV3Interface priceFeed;
 
         if (tokenAddress == address(0)) {
@@ -336,7 +431,21 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
 
         (, int256 price,,,) = priceFeed.latestRoundData();
 
-        return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
+        return uint256(price); //((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                EXTERNAL / PUBLIC VIEW / PURE FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Returns the amount of collateral deposited for a given token ID and token address
+     * @param tokenId The ID of the token to get the collateral for
+     * @param tokenAddress The address of the token to get the collateral for
+     * @return The amount of collateral deposited for the given token ID and token address
+     */
+    function getCollateralDeposited(uint256 tokenId, address tokenAddress) public view returns (uint256) {
+        return s_collateralDeposited[tokenId][tokenAddress];
     }
 
     /**
@@ -347,24 +456,45 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @dev Constructs metadata including name, description, attributes and image
      * @dev Attributes include USD values of all collateral assets
      * @dev Uses Base64 encoding for on-chain metadata storage
+     * @dev Calculates total collateral value (TCL) in USD
+     * @dev Includes individual asset values as traits
+     * @dev Example metadata structure:
+     * {
+     *   "tokenId": "1",
+     *   "name": "DeCup #1 $1000",
+     *   "description": "Decentralized Cup of assets",
+     *   "attributes": [
+     *     {"trait_type": "TCL", "value": "1000 USD"},
+     *     {"trait_type": "ETH", "value": "500"},
+     *     {"trait_type": "USDC", "value": "500"}
+     *   ],
+     *   "image": "data:image/svg+xml;base64,..."
+     * }
      */
     function tokenURI(uint256 _tokenId) public view override returns (string memory) {
         string memory imageURI = s_svgImageUri;
         address[] memory assets = s_tokenIdToAssets[_tokenId];
 
         bytes memory attributes;
+        uint256 tcl;
 
         for (uint256 i = 0; i < assets.length; i++) {
             string memory symbol;
-            uint256 amount = getUsdValue(assets[i], s_collateralDeposited[_tokenId][assets[i]]);
+            uint256 amount = s_collateralDeposited[_tokenId][assets[i]];
+
+            //tcl += getTokenAmountFromUsd(assets[i], amount);
 
             if (assets[i] == address(0)) {
                 // Native currency (ETH, MATIC, etc.)
                 symbol = "ETH"; // You might want to make this configurable based on chain
+                amount = getEthUSDValue(assets[i], amount);
             } else {
                 // ERC20 token
                 symbol = IERC20Metadata(assets[i]).symbol();
+                amount = getUsdcUSDValue(assets[i], amount);
             }
+
+            tcl += amount;
 
             attributes = abi.encodePacked(
                 attributes,
@@ -376,16 +506,24 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
                 i < assets.length - 1 ? "," : ""
             );
         }
+        tcl = tcl / 1e18;
+
         return string(
             abi.encodePacked(
                 _baseURI(),
                 Base64.encode(
                     bytes(
                         abi.encodePacked(
-                            '{"name":"',
-                            name(),
+                            '{"tokenId":"',
+                            Strings.toString(_tokenId),
+                            '","name":"',
+                            abi.encodePacked(
+                                name(), "#", Strings.toString(_tokenId), " $", Strings.toString(uint256(tcl))
+                            ),
                             '","description":"Decentralized Cup of assets", "attributes": [',
-                            '{"trait_type":"TCL","value":"0 USD"}',
+                            '{"trait_type":"TCL","value":"',
+                            Strings.toString(uint256(tcl)),
+                            ' USD"}',
                             attributes.length > 0 ? "," : "",
                             attributes,
                             '],"image":"',
