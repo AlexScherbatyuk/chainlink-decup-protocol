@@ -10,7 +10,7 @@
 // Chainklink "Receiver" should have permissions send NFT to another owner (change owner).
 // Chainklink "Receiver" should have permissions to burn NFT on behalf of an owner.
 
-pragma solidity ^0.8.29;
+pragma solidity 0.8.29;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -19,6 +19,7 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title Decentralized Cup of assets (DeCup)
@@ -29,7 +30,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
  * - Chainlink Price Feeds to calculate NFT price based on assets market prices,
  * - Chainlink CCIP to papulate transfer and burn functionalities cros-chain.
  */
-contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
+contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     // Errors
     error DeCup__AmountMustBeGreaterThanZero();
     error DeCup__TransferFailed();
@@ -45,10 +46,12 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     error DeCup__TokenIsListedForSale();
     error DeCup__TokenIsNotListedForSale();
     error DeCup__NotOwner();
+    error DeCup__NotTokenOwner();
 
     // State variables
     uint256 private s_tokenCounter;
     string private s_svgImageUri;
+    address private s_salerAddress;
 
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
     uint256 private constant PRECISION = 1e18;
@@ -87,8 +90,20 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @param tokenId The ID of the token to check
      * @dev Reverts if the caller is not the owner of the token
      */
-    modifier isOwner(uint256 tokenId) {
+    modifier isTokenOwner(uint256 tokenId) {
         if (ownerOf(tokenId) != msg.sender) {
+            revert DeCup__NotTokenOwner();
+        }
+        _;
+    }
+
+    /**
+     * @notice Modifier to check if the caller is the owner of the token
+     * @param tokenId The ID of the token to check
+     * @dev Reverts if the caller is not the owner of the token
+     */
+    modifier isTokenOwnerOrOwner(uint256 tokenId) {
+        if (ownerOf(tokenId) != msg.sender && owner() != msg.sender) {
             revert DeCup__NotOwner();
         }
         _;
@@ -126,7 +141,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         address[] memory _tokenAddresses,
         address[] memory _priceFeedAddresses,
         address _defaultPriceFeed
-    ) ERC721("DeCup", "DCT") {
+    ) ERC721("DeCup", "DCT") Ownable(msg.sender) {
         if (_tokenAddresses.length == 0) {
             revert DeCup__AllowedTokenAddressesMustNotBeEmpty();
         }
@@ -192,7 +207,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      */
     function addTokenCollateralToExistingCup(address tokenAddress, uint256 amount, uint256 tokenId)
         external
-        isOwner(tokenId)
+        isTokenOwner(tokenId)
         tokenIsListedForSale(tokenId)
         moreThanZero(amount)
         nonReentrant
@@ -223,7 +238,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
     function addNativeCollateralToExistingCup(uint256 tokenId)
         external
         payable
-        isOwner(tokenId)
+        isTokenOwner(tokenId)
         tokenIsListedForSale(tokenId)
         moreThanZero(msg.value)
         nonReentrant
@@ -339,8 +354,13 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @dev Emits TokenListedForSale event on successful listing
      * @dev Reverts if the token is already listed for sale
      */
-    function listForSale(uint256 tokenId) public isOwner(tokenId) tokenIsListedForSale(tokenId) {
+    function listForSale(uint256 tokenId, address salerAddress)
+        public
+        isTokenOwnerOrOwner(tokenId)
+        tokenIsListedForSale(tokenId)
+    {
         s_tokenIdIsListedForSale[tokenId] = true;
+        s_salerAddress = salerAddress;
         emit TokenListedForSale(tokenId);
     }
 
@@ -352,12 +372,36 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @dev Emits TokenRemovedFromSale event on successful removal
      * @dev Reverts if the token is not listed for sale
      */
-    function removeFromSale(uint256 tokenId) public isOwner(tokenId) {
+    function removeFromSale(uint256 tokenId) public isTokenOwnerOrOwner(tokenId) {
         if (!s_tokenIdIsListedForSale[tokenId]) {
             revert DeCup__TokenIsNotListedForSale();
         }
         s_tokenIdIsListedForSale[tokenId] = false;
         emit TokenRemovedFromSale(tokenId);
+
+        //interactions
+        /*(bool success,) = address(payable(s_salerAddress)).call{value: address(this).balance}("");
+        if (!success) {
+            revert DeCup__TransferFailed();
+        }*/
+    }
+
+    /**
+     * @notice Function to transfer a token and burn it
+     * @param tokenId The ID of the token to transfer and burn
+     * @param to The address to transfer the token to
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     */
+    function transferAndBurn(uint256 tokenId, address to)
+        public
+        tokenExists(tokenId)
+        isTokenOwnerOrOwner(tokenId)
+        tokenIsListedForSale(tokenId)
+        nonReentrant
+    {
+        _transfer(msg.sender, to, tokenId);
+        burn(tokenId);
     }
 
     /**
@@ -373,7 +417,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         public
         override
         tokenExists(tokenId)
-        isOwner(tokenId)
+        isTokenOwnerOrOwner(tokenId)
         tokenIsListedForSale(tokenId)
         nonReentrant
     {
@@ -417,6 +461,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @dev Implements the CEI pattern (Checks-Effects-Interactions)
      * @dev Emits WithdrawNativeCurrency event on successful withdrawal
      * @dev Reverts if contract has insufficient balance or if transfer fails
+     * @dev Funds are transferred to the owner of the NFT, not the caller
      */
     function _withdrawNativeCurrency(uint256 tokenId, uint256 amount) private {
         if (address(this).balance < amount) {
@@ -426,7 +471,7 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
         s_collateralDeposited[tokenId][address(0)] = 0;
         emit WithdrawNativeCurrency(msg.sender, amount);
 
-        (bool success,) = msg.sender.call{value: amount}("");
+        (bool success,) = address(payable(ownerOf(tokenId))).call{value: amount}("");
         if (!success) {
             revert DeCup__TransferFailed();
         }
@@ -440,14 +485,16 @@ contract DeCup is ERC721, ERC721Burnable, ReentrancyGuard {
      * @dev Internal function used by burn function to withdraw ERC20 tokens
      * @dev Implements the CEI pattern (Checks-Effects-Interactions)
      * @dev Emits WithdrawERC20Token event on successful withdrawal
-     * @dev Reverts if amount is zero or if transfer fails
+     * @dev Reverts if amount is zero (via moreThanZero modifier) or if transfer fails
+     * @dev Reverts if contract has insufficient balance (via transfer check)
+     * @dev Transfer function is called on the owner of the token
      */
     function _withdrawSingleToken(uint256 tokenId, address tokenAddress, uint256 amount) private moreThanZero(amount) {
         // Effect
         s_collateralDeposited[tokenId][tokenAddress] = 0;
         emit WithdrawERC20Token(msg.sender, tokenAddress, amount);
         // Interaction
-        if (!IERC20Metadata(tokenAddress).transfer(msg.sender, amount)) {
+        if (!IERC20Metadata(tokenAddress).transfer(address(payable(ownerOf(tokenId))), amount)) {
             revert DeCup__TransferFailed();
         }
     }
