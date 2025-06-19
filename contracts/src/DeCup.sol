@@ -51,7 +51,6 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     // State variables
     uint256 private s_tokenCounter;
     string private s_svgImageUri;
-    address private s_salerAddress;
 
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
     uint256 private constant PRECISION = 1e18;
@@ -354,13 +353,8 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Emits TokenListedForSale event on successful listing
      * @dev Reverts if the token is already listed for sale
      */
-    function listForSale(uint256 tokenId, address salerAddress)
-        public
-        isTokenOwnerOrOwner(tokenId)
-        tokenIsListedForSale(tokenId)
-    {
+    function listForSale(uint256 tokenId) public isTokenOwnerOrOwner(tokenId) tokenIsListedForSale(tokenId) {
         s_tokenIdIsListedForSale[tokenId] = true;
-        s_salerAddress = salerAddress;
         emit TokenListedForSale(tokenId);
     }
 
@@ -378,12 +372,6 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         }
         s_tokenIdIsListedForSale[tokenId] = false;
         emit TokenRemovedFromSale(tokenId);
-
-        //interactions
-        /*(bool success,) = address(payable(s_salerAddress)).call{value: address(this).balance}("");
-        if (!success) {
-            revert DeCup__TransferFailed();
-        }*/
     }
 
     /**

@@ -4,14 +4,12 @@ pragma solidity 0.8.29;
 import {Script} from "forge-std/Script.sol";
 import {DeCup} from "src/DeCup.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
-import {HelperConfig} from "./HelperConfig.s.sol";
+import {HelperConfigDeCup} from "./HelperConfigDeCup.s.sol";
 
 contract DeployDeCup is Script {
-    //  HelperConfig helperConfig;
-
-    function run() external returns (DeCup, HelperConfig) {
-        HelperConfig config = new HelperConfig();
-        HelperConfig.NetworkConfig memory networkConfig = config.getConfig();
+    function run() external returns (DeCup, HelperConfigDeCup) {
+        HelperConfigDeCup config = new HelperConfigDeCup();
+        HelperConfigDeCup.NetworkConfig memory networkConfig = config.getConfig();
 
         DeCup decup = deployDeCup(
             networkConfig.imageURI,

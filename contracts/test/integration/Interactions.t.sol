@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.29;
+pragma solidity 0.8.29;
 
 import {Test, console} from "forge-std/Test.sol";
 import {DeCup} from "src/DeCup.sol";
@@ -18,7 +18,6 @@ import {
     ListForSale,
     RemoveFromSale
 } from "script/Interactions.s.sol";
-import {HelperConfig} from "script/HelperConfig.s.sol";
 
 contract InteractionsTest is Test {
     function setUp() public {}

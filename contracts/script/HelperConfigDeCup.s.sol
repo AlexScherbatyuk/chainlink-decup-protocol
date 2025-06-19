@@ -7,7 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {MockToken} from "test/mocks/MockToken.sol";
 
-contract HelperConfig is Script {
+contract HelperConfigDeCup is Script {
     struct NetworkConfig {
         string imageURI;
         address[] tokenAddresses;

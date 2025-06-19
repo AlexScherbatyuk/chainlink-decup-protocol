@@ -4,7 +4,7 @@ pragma solidity 0.8.29;
 
 import {Script} from "forge-std/Script.sol";
 import {DeCup} from "src/DeCup.sol";
-import {HelperConfig} from "./HelperConfig.s.sol";
+import {HelperConfigDeCup} from "./HelperConfigDeCup.s.sol";
 import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 
 contract DepositMultipleAssetsAndMintNft is Script {
@@ -17,8 +17,8 @@ contract DepositMultipleAssetsAndMintNft is Script {
     }
 
     function depositMultipleAssetsAndMintNft(address deCupAddress) public {
-        HelperConfig config = new HelperConfig();
-        HelperConfig.NetworkConfig memory networkConfig = config.getConfig();
+        HelperConfigDeCup config = new HelperConfigDeCup();
+        HelperConfigDeCup.NetworkConfig memory networkConfig = config.getConfig();
 
         uint256[] memory amounts = new uint256[](3);
         amounts[0] = 5e17;
@@ -60,8 +60,8 @@ contract DepositSingleAssetAndMintNft is Script {
     }
 
     function depositSingleAssetAndMintNft(address deCupAddress) public {
-        HelperConfig config = new HelperConfig();
-        HelperConfig.NetworkConfig memory networkConfig = config.getConfig();
+        HelperConfigDeCup config = new HelperConfigDeCup();
+        HelperConfigDeCup.NetworkConfig memory networkConfig = config.getConfig();
 
         vm.startBroadcast();
         DeCup(payable(deCupAddress)).depositSingleAssetAndMint(networkConfig.tokenAddresses[3], 5e6);
@@ -95,8 +95,8 @@ contract AddSingleAssetCollateralToExistingCup is Script {
     }
 
     function addSingleAssetCollateralToExistingCup(address deCupAddress, uint256 tokenId) public {
-        HelperConfig config = new HelperConfig();
-        HelperConfig.NetworkConfig memory networkConfig = config.getConfig();
+        HelperConfigDeCup config = new HelperConfigDeCup();
+        HelperConfigDeCup.NetworkConfig memory networkConfig = config.getConfig();
         vm.startBroadcast();
         DeCup(payable(deCupAddress)).addTokenCollateralToExistingCup(networkConfig.tokenAddresses[2], 5e6, tokenId);
         vm.stopBroadcast();
