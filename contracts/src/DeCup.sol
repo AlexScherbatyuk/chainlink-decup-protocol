@@ -375,11 +375,34 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Function to transfer a token and burn it
+     * @notice Function to transfer a token by DeCupManager
+     * @param tokenId The ID of the token to transfer
+     * @param to The address to transfer the token to
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Only callable by token owner or contract owner
+     * @dev Token must be listed for sale
+     */
+    function transfer(uint256 tokenId, address to)
+        public
+        tokenExists(tokenId)
+        isTokenOwnerOrOwner(tokenId)
+        tokenIsListedForSale(tokenId)
+        nonReentrant
+        returns (bool)
+    {
+        _transfer(ownerOf(tokenId), to, tokenId);
+        return true;
+    }
+
+    /**
+     * @notice Function to transfer a token and burn it by DeCupManager
      * @param tokenId The ID of the token to transfer and burn
      * @param to The address to transfer the token to
      * @dev Implements the CEI pattern (Checks-Effects-Interactions)
      * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Only callable by token owner or contract owner
+     * @dev Token must be listed for sale
      */
     function transferAndBurn(uint256 tokenId, address to)
         public
@@ -387,9 +410,11 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         isTokenOwnerOrOwner(tokenId)
         tokenIsListedForSale(tokenId)
         nonReentrant
+        returns (bool)
     {
-        _transfer(msg.sender, to, tokenId);
+        _transfer(ownerOf(tokenId), to, tokenId);
         burn(tokenId);
+        return true;
     }
 
     /**

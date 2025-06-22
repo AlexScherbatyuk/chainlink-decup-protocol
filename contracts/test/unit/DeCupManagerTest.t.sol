@@ -152,7 +152,7 @@ contract DeCupManagerTest is Test {
         // First need to ensure user1 owns the token but isn't the caller
         vm.prank(user2); // Different user than token owner
         vm.expectRevert(DeCupManager.DeCupManager__NotOwner.selector);
-        decupManager.createSale(TEST_TOKEN_ID, address(0), TEST_NETWORK_ID);
+        decupManager.createSale(TEST_TOKEN_ID, address(0));
     }
 
     function testCreateSaleRevertsIfTokenAlreadyListed() public {
@@ -162,7 +162,7 @@ contract DeCupManagerTest is Test {
 
         vm.prank(user2);
         vm.expectRevert(DeCupManager.DeCupManager__TokenListedForSale.selector);
-        decupManager.createSale(TEST_TOKEN_ID, address(0), TEST_NETWORK_ID);
+        decupManager.createSale(TEST_TOKEN_ID, address(0));
     }
 
     function testCreateCrossSaleRevertsWithInsufficientETH() public {
@@ -294,7 +294,7 @@ contract DeCupManagerTest is Test {
                         EDGE CASE TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testSaleCounterIncrementsCorrectly() public {
+    function testSaleCounterIncrementsCorrectly() public view {
         uint256 initialCounter = decupManager.s_saleCounter();
 
         // The counter should increment but we can't easily test createSale due to ownership logic

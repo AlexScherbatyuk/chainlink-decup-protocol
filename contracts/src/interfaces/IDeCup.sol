@@ -19,7 +19,8 @@ interface IDeCup {
     // Sale Functions
     function listForSale(uint256 tokenId) external;
     function removeFromSale(uint256 tokenId) external;
-    function transferAndBurn(uint256 tokenId, address to) external;
+    function transferAndBurn(uint256 tokenId, address to) external returns (bool);
+    function transfer(uint256 tokenId, address to) external returns (bool);
     function burn(uint256 tokenId) external;
 
     // View Functions
