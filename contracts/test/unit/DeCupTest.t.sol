@@ -11,10 +11,11 @@ import {MockToken} from "../mocks/MockToken.sol";
 import {FailingMockToken} from "../mocks/MockToken.sol";
 
 contract DeCupTest is Test {
-    DeCup public s_deCup;
+    DeCup public deCup;
     HelperConfigDeCup public s_config;
     HelperConfigDeCup.NetworkConfig public s_networkConfig;
     FailingMockToken public s_failingMockToken;
+    DeployDeCup public s_deployer;
 
     string public s_svgDeCupImage;
 
@@ -41,10 +42,10 @@ contract DeCupTest is Test {
      */
 
     function setUp() external {
-        DeployDeCup deployer = new DeployDeCup();
+        s_deployer = new DeployDeCup();
         s_svgDeCupImage = vm.readFile("./img/decup.svg");
 
-        (s_deCup, s_config) = deployer.run();
+        (deCup, s_config) = s_deployer.run();
         s_failingMockToken = new FailingMockToken(1000 ether);
 
         s_networkConfig = s_config.getConfig();
@@ -57,11 +58,11 @@ contract DeCupTest is Test {
 
         // Loggin
         console.log(msg.sender);
-        console.log("mockToken: ", IERC20Metadata(s_mockTokenWeth).balanceOf(address(deployer)));
-        console.log("mockTokenBtc: ", IERC20Metadata(s_mockTokenWbtc).balanceOf(address(deployer)));
-        console.log("mockTokenUsdc: ", IERC20Metadata(s_mockTokenUsdc).balanceOf(address(deployer)));
+        console.log("mockToken: ", IERC20Metadata(s_mockTokenWeth).balanceOf(address(s_deployer)));
+        console.log("mockTokenBtc: ", IERC20Metadata(s_mockTokenWbtc).balanceOf(address(s_deployer)));
+        console.log("mockTokenUsdc: ", IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deployer)));
 
-        vm.startPrank(address(deployer));
+        vm.startPrank(address(s_deployer));
         IERC20Metadata(s_mockTokenWeth).transfer(USER, INITIAL_ERC20_WETH);
         IERC20Metadata(s_mockTokenWbtc).transfer(USER, INITIAL_ERC20_WBTC);
         IERC20Metadata(s_mockTokenUsdc).transfer(USER, INITIAL_ERC20_USDC);
@@ -69,6 +70,13 @@ contract DeCupTest is Test {
 
         s_failingMockToken.transfer(USER, INITIAL_ERC20_WETH);
     }
+
+    modifier mintDeCupNft() {
+        // vm.prank(USER);
+        // deCup.mint(USER, 0);
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                               TEST DEPLOY
     //////////////////////////////////////////////////////////////*/
@@ -125,12 +133,12 @@ contract DeCupTest is Test {
 
         // Act
         vm.prank(USER);
-        (bool success,) = address(s_deCup).call{value: amount}("");
+        (bool success,) = address(deCup).call{value: amount}("");
 
         // Assert
         assert(success);
-        assertEq(address(s_deCup).balance, amount);
-        assertEq(s_deCup.getTokenCounter(), 1);
+        assertEq(address(deCup).balance, amount);
+        assertEq(deCup.getTokenCounter(), 1);
     }
 
     /**
@@ -144,7 +152,7 @@ contract DeCupTest is Test {
         // Act / Assert
         vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__AmountMustBeGreaterThanZero.selector);
-        (bool success,) = address(s_deCup).call{value: amount}("");
+        (bool success,) = address(deCup).call{value: amount}("");
         assert(success);
     }
 
@@ -159,31 +167,38 @@ contract DeCupTest is Test {
 
         // First deposit 1 ether to get an NFT
         vm.startPrank(USER);
-        (bool success,) = address(s_deCup).call{value: 1 ether}("");
+        (bool success,) = address(deCup).call{value: 1 ether}("");
         assert(success);
 
         // Act - Burn the NFT to withdraw the collateral
-        s_deCup.burn(tokenId);
+        deCup.burn(tokenId);
         vm.stopPrank();
         // Assert
         assertEq(USER.balance, initialBalance); // User should get back their 1 ether
-        assertEq(address(s_deCup).balance, 0); // Contract should have no balance
+        assertEq(address(deCup).balance, 0); // Contract should have no balance
     }
 
-    function testBurnNftWittNativeCurrencyListedForSale() public {
+    function testBurnNftRevertsWhenNativeCurrencyListedForSale() public {
         // Arrange
         uint256 tokenId = 0; // First minted token will have ID 0
 
         // First deposit 1 ether to get an NFT
-        vm.startPrank(USER);
-        (bool success,) = address(s_deCup).call{value: 1 ether}("");
+        vm.prank(USER);
+        (bool success,) = address(deCup).call{value: 1 ether}("");
         assert(success);
 
         // Act - Burn the NFT to withdraw the collateral
-        s_deCup.listForSale(tokenId);
+        console.log("tokenId owner:", deCup.ownerOf(tokenId));
+        console.log("USER", USER);
+        console.log("deCup owner", deCup.owner());
+        console.log("msg.sender", msg.sender);
+
+        vm.prank(address(msg.sender));
+        deCup.listForSale(tokenId);
+
+        vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__TokenIsListedForSale.selector);
-        s_deCup.burn(tokenId);
-        vm.stopPrank();
+        deCup.burn(tokenId);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -200,11 +215,11 @@ contract DeCupTest is Test {
         uint256 initialUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(USER);
         // Act - First deposit to mint NFT, then burn to withdraw
         vm.startPrank(USER);
-        IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), depositUsdcAmount);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(deCup), depositUsdcAmount);
 
         console.log(IERC20Metadata(s_mockTokenUsdc).balanceOf(USER));
 
-        s_deCup.depositSingleAssetAndMint(address(s_mockTokenUsdc), depositUsdcAmount);
+        deCup.depositSingleAssetAndMint(address(s_mockTokenUsdc), depositUsdcAmount);
         vm.stopPrank();
         _;
     }
@@ -214,7 +229,7 @@ contract DeCupTest is Test {
      * @dev Verifies that the contract properly returns the list of assets deposited for a given token ID
      */
     function testGetTokenAssetsList() public depositSingleAssets {
-        address[] memory assets = s_deCup.getTokenAssetsList(0);
+        address[] memory assets = deCup.getTokenAssetsList(0);
         assertEq(assets[0], address(s_mockTokenUsdc));
     }
 
@@ -226,7 +241,7 @@ contract DeCupTest is Test {
         uint256 initialUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(USER);
         uint256 depositUsdcAmount = 50e6;
         vm.prank(USER);
-        s_deCup.burn(0);
+        deCup.burn(0);
 
         uint256 afterBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(USER);
         assertEq(afterBalance, initialUsdcBalance + depositUsdcAmount);
@@ -241,11 +256,11 @@ contract DeCupTest is Test {
 
     function testAddNativeCollateralToExistingCup() public depositSingleAssets {
         // Arrange
-        uint256 initialBalance = address(s_deCup).balance;
+        uint256 initialBalance = address(deCup).balance;
         vm.startPrank(USER);
-        s_deCup.addNativeCollateralToExistingCup{value: 1 ether}(0);
+        deCup.addNativeCollateralToExistingCup{value: 1 ether}(0);
         vm.stopPrank();
-        assertEq(address(s_deCup).balance, initialBalance + 1 ether);
+        assertEq(address(deCup).balance, initialBalance + 1 ether);
     }
 
     /**
@@ -259,9 +274,9 @@ contract DeCupTest is Test {
         MockToken notAllowedToken = new MockToken("WETH", "WETH", USER, amount, 18);
 
         // Act
-        notAllowedToken.approve(address(s_deCup), amount);
+        notAllowedToken.approve(address(deCup), amount);
         vm.expectRevert(DeCup.DeCup__NotAllowedToken.selector);
-        s_deCup.depositSingleAssetAndMint(address(notAllowedToken), amount);
+        deCup.depositSingleAssetAndMint(address(notAllowedToken), amount);
         vm.stopPrank();
     }
 
@@ -273,10 +288,10 @@ contract DeCupTest is Test {
         // Arrange
         vm.startPrank(USER);
         uint256 tokenId = 0; // First minted token will have ID 0
-        s_deCup.burn(tokenId); // Burn NFT to withdraw collateral
+        deCup.burn(tokenId); // Burn NFT to withdraw collateral
         vm.stopPrank();
 
-        assertEq(IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup)), 0);
+        assertEq(IERC20Metadata(s_mockTokenUsdc).balanceOf(address(deCup)), 0);
     }
 
     /**
@@ -286,7 +301,7 @@ contract DeCupTest is Test {
     function testRevertWhenBurningNonExistentNft() public {
         vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__TokenDoesNotExist.selector);
-        s_deCup.burn(999); // Try to burn non-existent token
+        deCup.burn(999); // Try to burn non-existent token
     }
 
     /**
@@ -297,9 +312,9 @@ contract DeCupTest is Test {
         // Arrange
         vm.startPrank(USER);
         // Act / Assert
-        IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), 1000 * 10 ** 18);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(deCup), 1000 * 10 ** 18);
         vm.expectRevert(DeCup.DeCup__AmountMustBeGreaterThanZero.selector);
-        s_deCup.depositSingleAssetAndMint(address(s_mockTokenUsdc), 0);
+        deCup.depositSingleAssetAndMint(address(s_mockTokenUsdc), 0);
         vm.stopPrank();
     }
 
@@ -327,9 +342,9 @@ contract DeCupTest is Test {
 
         // Act - First deposit to mint NFT, then burn to withdraw
         vm.startPrank(USER);
-        IERC20Metadata(s_mockTokenWeth).approve(address(s_deCup), depositWethAmount);
-        IERC20Metadata(s_mockTokenWbtc).approve(address(s_deCup), depositWbtcAmount);
-        IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), depositUsdcAmount);
+        IERC20Metadata(s_mockTokenWeth).approve(address(deCup), depositWethAmount);
+        IERC20Metadata(s_mockTokenWbtc).approve(address(deCup), depositWbtcAmount);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(deCup), depositUsdcAmount);
 
         console.log(IERC20Metadata(s_mockTokenUsdc).balanceOf(USER));
 
@@ -341,7 +356,7 @@ contract DeCupTest is Test {
         amounts[1] = depositWbtcAmount;
         amounts[2] = depositUsdcAmount;
 
-        s_deCup.depositMultipleAssetsAndMint{value: amount}(tokens, amounts);
+        deCup.depositMultipleAssetsAndMint{value: amount}(tokens, amounts);
         vm.stopPrank();
         _;
     }
@@ -352,13 +367,13 @@ contract DeCupTest is Test {
      */
     function testAddTokenCollateralToExistingCup() public depositSingleAssets {
         // Arrange
-        uint256 initialBalance = s_deCup.getCollateralDeposited(0, address(s_mockTokenUsdc));
-        uint256 initialUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup));
+        uint256 initialBalance = deCup.getCollateralBalance(0, address(s_mockTokenUsdc));
+        uint256 initialUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(address(deCup));
         vm.startPrank(USER);
-        s_deCup.addTokenCollateralToExistingCup(address(s_mockTokenUsdc), 5e6, 0);
+        deCup.addTokenCollateralToExistingCup(address(s_mockTokenUsdc), 5e6, 0);
         vm.stopPrank();
-        uint256 afterBalance = s_deCup.getCollateralDeposited(0, address(s_mockTokenUsdc));
-        uint256 afterUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup));
+        uint256 afterBalance = deCup.getCollateralBalance(0, address(s_mockTokenUsdc));
+        uint256 afterUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(address(deCup));
         assertEq(afterBalance, initialBalance + 5e6);
         assertEq(afterUsdcBalance, initialUsdcBalance);
     }
@@ -371,7 +386,7 @@ contract DeCupTest is Test {
         // Arrange
         vm.startPrank(USER);
         vm.expectRevert(DeCup.DeCup__NotAllowedToken.selector);
-        s_deCup.addTokenCollateralToExistingCup(address(s_failingMockToken), 5e6, 0);
+        deCup.addTokenCollateralToExistingCup(address(s_failingMockToken), 5e6, 0);
         vm.stopPrank();
     }
 
@@ -387,17 +402,17 @@ contract DeCupTest is Test {
         // Arrange
         // Act
         vm.startPrank(USER);
-        uint256 userNftBalance = s_deCup.balanceOf(USER);
+        uint256 userNftBalance = deCup.balanceOf(USER);
         uint256 tokenId = 0; // First minted token will have ID 0
-        s_deCup.burn(tokenId); // Burn NFT to withdraw all collateral
-        uint256 userNftBalanceAfterBurn = s_deCup.balanceOf(USER);
+        deCup.burn(tokenId); // Burn NFT to withdraw all collateral
+        uint256 userNftBalanceAfterBurn = deCup.balanceOf(USER);
         vm.stopPrank();
 
         // Assert
-        assertEq(IERC20Metadata(s_mockTokenWeth).balanceOf(address(s_deCup)), 0);
-        assertEq(IERC20Metadata(s_mockTokenWbtc).balanceOf(address(s_deCup)), 0);
-        assertEq(IERC20Metadata(s_mockTokenUsdc).balanceOf(address(s_deCup)), 0);
-        assertEq(address(s_deCup).balance, 0);
+        assertEq(IERC20Metadata(s_mockTokenWeth).balanceOf(address(deCup)), 0);
+        assertEq(IERC20Metadata(s_mockTokenWbtc).balanceOf(address(deCup)), 0);
+        assertEq(IERC20Metadata(s_mockTokenUsdc).balanceOf(address(deCup)), 0);
+        assertEq(address(deCup).balance, 0);
         assert(userNftBalance > userNftBalanceAfterBurn);
         assertEq(userNftBalanceAfterBurn, 0);
     }
@@ -418,7 +433,7 @@ contract DeCupTest is Test {
         // Act / Assert
         vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__TokenAddressesAndAmountsMusBeSameLength.selector);
-        s_deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
     }
 
     /**
@@ -437,9 +452,9 @@ contract DeCupTest is Test {
 
         // Act / Assert
         vm.startPrank(USER);
-        IERC20Metadata(s_mockTokenUsdc).approve(address(s_deCup), amounts[0]);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(deCup), amounts[0]);
         vm.expectRevert(DeCup.DeCup__AmountMustBeGreaterThanZero.selector);
-        s_deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
         vm.stopPrank();
     }
 
@@ -457,10 +472,10 @@ contract DeCupTest is Test {
 
         // Act / Assert
         vm.startPrank(USER);
-        s_failingMockToken.approve(address(s_deCup), amounts[0]);
+        s_failingMockToken.approve(address(deCup), amounts[0]);
         s_failingMockToken.setShouldFailTransfer(true); // Make the transfer return false
         vm.expectRevert(DeCup.DeCup__TransferFailed.selector);
-        s_deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
         vm.stopPrank();
     }
 
@@ -477,7 +492,7 @@ contract DeCupTest is Test {
         // Act - Should succeed but mint an NFT with no collateral
         vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__AmountMustBeGreaterThanZero.selector);
-        s_deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
+        deCup.depositMultipleAssetsAndMint(tokenAddresses, amounts);
     }
 
     /**
@@ -486,22 +501,22 @@ contract DeCupTest is Test {
      */
     function testDepositdNativeCurrencyMintedTokenURI() public depositMultiAssets {
         // Arrange / Act
-        assertEq(keccak256(bytes(s_nativeDepositTokenURI)), keccak256(bytes(s_deCup.tokenURI(0))));
+        assertEq(keccak256(bytes(s_nativeDepositTokenURI)), keccak256(bytes(deCup.tokenURI(0))));
     }
 
     /**
      * @notice Tests that the TCL is correctly calculated for a native currency deposit
      * @dev Verifies that depositing native currency and ERC20 tokens results in the expected TCL
      */
-    function testGetTokenIdTCL() public {
+    function testgetTokenPriceInUsd() public {
         // Arrange
         uint256 amount = 1 ether;
         uint256 tokenId = 0;
 
         // Act
         vm.prank(USER);
-        (bool success,) = address(s_deCup).call{value: amount}("");
-        uint256 tcl = s_deCup.getTokenIdTCL(tokenId);
+        (bool success,) = address(deCup).call{value: amount}("");
+        uint256 tcl = deCup.getTokenPriceInUsd(tokenId);
 
         // Assert
         assert(success);
@@ -516,11 +531,11 @@ contract DeCupTest is Test {
         // Arrange
         uint256 depositUsdcAmount = 50e6;
         // ACT
-        uint256 tcl = s_deCup.getTokenIdTCL(0);
-        uint256 usdcValue = s_deCup.getUsdcUSDValue(address(s_mockTokenUsdc), depositUsdcAmount);
+        uint256 tcl = (deCup.getTokenPriceInUsd(0) * 1e18) / 1e8; //50000 0000 0000
+        uint256 usdcValue = deCup.getUsdcUSDValue(address(s_mockTokenUsdc), depositUsdcAmount);
 
         // Assert
-        assertEq(tcl, usdcValue); //50000 000 000 000 000 000 000
+        assertEq(tcl, usdcValue); //50000 | 000 000 000 000 000 000
     }
 
     /**
@@ -534,8 +549,8 @@ contract DeCupTest is Test {
 
         // Act
         vm.prank(USER);
-        (bool success,) = address(s_deCup).call{value: amount}("");
-        address owner = s_deCup.ownerOf(tokenId);
+        (bool success,) = address(deCup).call{value: amount}("");
+        address owner = deCup.ownerOf(tokenId);
 
         // Assert
         assert(success);
@@ -551,13 +566,15 @@ contract DeCupTest is Test {
         uint256 tokenId = 0;
 
         // Act
-        vm.startPrank(USER);
-        (bool success,) = address(s_deCup).call{value: 1 ether}("");
-        s_deCup.listForSale(tokenId);
+        vm.prank(USER);
+        (bool success,) = address(deCup).call{value: 1 ether}("");
+
+        vm.prank(address(msg.sender));
+        deCup.listForSale(tokenId);
 
         // Assert
         assert(success);
-        assert(s_deCup.getIsListedForSale(tokenId));
+        assert(deCup.getIsListedForSale(tokenId));
     }
 
     /**
@@ -569,14 +586,16 @@ contract DeCupTest is Test {
         uint256 tokenId = 0;
 
         // Act
-        vm.startPrank(USER);
-        (bool success,) = address(s_deCup).call{value: 1 ether}("");
-        s_deCup.listForSale(tokenId);
-        s_deCup.removeFromSale(tokenId);
+        vm.prank(USER);
+        (bool success,) = address(deCup).call{value: 1 ether}("");
+
+        vm.startPrank(address(msg.sender));
+        deCup.listForSale(tokenId);
+        deCup.removeFromSale(tokenId);
         vm.stopPrank();
 
         // Assert
         assert(success);
-        assert(!s_deCup.getIsListedForSale(tokenId));
+        assert(!deCup.getIsListedForSale(tokenId));
     }
 }

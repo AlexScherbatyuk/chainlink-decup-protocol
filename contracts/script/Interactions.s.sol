@@ -146,7 +146,7 @@ contract GetNftCollateral is Script {
 
     function getNftCollateral(address deCupAddress, uint256 tokenId, address tokenAddress) public {
         vm.startBroadcast();
-        DeCup(payable(deCupAddress)).getCollateralDeposited(tokenId, tokenAddress); //getTokenIdTCL(tokenId);
+        DeCup(payable(deCupAddress)).getCollateralBalance(tokenId, tokenAddress); //getTokenPriceInUsd(tokenId);
         vm.stopBroadcast();
     }
 }
@@ -162,7 +162,7 @@ contract GetNftTCLOfToken is Script {
 
     function getNftTCLOfToken(address deCupAddress, uint256 tokenId) public {
         vm.startBroadcast();
-        DeCup(payable(deCupAddress)).getTokenIdTCL(tokenId);
+        DeCup(payable(deCupAddress)).getTokenPriceInUsd(tokenId);
         vm.stopBroadcast();
     }
 }

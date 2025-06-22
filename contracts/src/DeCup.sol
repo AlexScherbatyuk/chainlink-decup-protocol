@@ -1,15 +1,4 @@
 // SPDX-License-Identifier: MIT
-
-// Receive Native currency
-// Receive ERC20
-// Withdraw Native currency
-// Withdraw ERC20
-// MintNFT with attributes equal to deposited amount
-// BurnNFT & withdraw assets based on NFT collateral data
-
-// Chainklink "Receiver" should have permissions send NFT to another owner (change owner).
-// Chainklink "Receiver" should have permissions to burn NFT on behalf of an owner.
-
 pragma solidity 0.8.29;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -47,6 +36,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     error DeCup__TokenIsNotListedForSale();
     error DeCup__NotOwner();
     error DeCup__NotTokenOwner();
+    error DeCup__NotOwnerOrManager();
 
     // State variables
     uint256 private s_tokenCounter;
@@ -89,7 +79,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @param tokenId The ID of the token to check
      * @dev Reverts if the caller is not the owner of the token
      */
-    modifier isTokenOwner(uint256 tokenId) {
+    modifier isOwner(uint256 tokenId) {
         if (ownerOf(tokenId) != msg.sender) {
             revert DeCup__NotTokenOwner();
         }
@@ -98,12 +88,22 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
 
     /**
      * @notice Modifier to check if the caller is the owner of the token
-     * @param tokenId The ID of the token to check
      * @dev Reverts if the caller is not the owner of the token
      */
-    modifier isTokenOwnerOrOwner(uint256 tokenId) {
-        if (ownerOf(tokenId) != msg.sender && owner() != msg.sender) {
+    modifier isManager() {
+        if (owner() != msg.sender) {
             revert DeCup__NotOwner();
+        }
+        _;
+    }
+
+    /**
+     * @notice Modifier to check if the caller is the owner of the token
+     * @dev Reverts if the caller is not the owner of the token
+     */
+    modifier isOwnerOrManager(uint256 tokenId) {
+        if (ownerOf(tokenId) != msg.sender && owner() != msg.sender) {
+            revert DeCup__NotOwnerOrManager();
         }
         _;
     }
@@ -114,6 +114,18 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Reverts if the token is listed for sale
      */
     modifier tokenIsListedForSale(uint256 tokenId) {
+        if (!s_tokenIdIsListedForSale[tokenId]) {
+            revert DeCup__TokenIsNotListedForSale();
+        }
+        _;
+    }
+
+    /**
+     * @notice Modifier to check if the token is listed for sale
+     * @param tokenId The ID of the token to check
+     * @dev Reverts if the token is listed for sale
+     */
+    modifier tokenIsNotListedForSale(uint256 tokenId) {
         if (s_tokenIdIsListedForSale[tokenId]) {
             revert DeCup__TokenIsListedForSale();
         }
@@ -206,8 +218,8 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      */
     function addTokenCollateralToExistingCup(address tokenAddress, uint256 amount, uint256 tokenId)
         external
-        isTokenOwner(tokenId)
-        tokenIsListedForSale(tokenId)
+        isOwner(tokenId)
+        tokenIsNotListedForSale(tokenId)
         moreThanZero(amount)
         nonReentrant
     {
@@ -237,8 +249,8 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     function addNativeCollateralToExistingCup(uint256 tokenId)
         external
         payable
-        isTokenOwner(tokenId)
-        tokenIsListedForSale(tokenId)
+        isOwner(tokenId)
+        tokenIsNotListedForSale(tokenId)
         moreThanZero(msg.value)
         nonReentrant
     {
@@ -353,7 +365,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Emits TokenListedForSale event on successful listing
      * @dev Reverts if the token is already listed for sale
      */
-    function listForSale(uint256 tokenId) public isTokenOwnerOrOwner(tokenId) tokenIsListedForSale(tokenId) {
+    function listForSale(uint256 tokenId) public isManager tokenIsNotListedForSale(tokenId) {
         s_tokenIdIsListedForSale[tokenId] = true;
         emit TokenListedForSale(tokenId);
     }
@@ -366,7 +378,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Emits TokenRemovedFromSale event on successful removal
      * @dev Reverts if the token is not listed for sale
      */
-    function removeFromSale(uint256 tokenId) public isTokenOwnerOrOwner(tokenId) {
+    function removeFromSale(uint256 tokenId) public isManager {
         if (!s_tokenIdIsListedForSale[tokenId]) {
             revert DeCup__TokenIsNotListedForSale();
         }
@@ -386,11 +398,12 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     function transfer(uint256 tokenId, address to)
         public
         tokenExists(tokenId)
-        isTokenOwnerOrOwner(tokenId)
+        isManager
         tokenIsListedForSale(tokenId)
         nonReentrant
         returns (bool)
     {
+        delete s_tokenIdIsListedForSale[tokenId];
         _transfer(ownerOf(tokenId), to, tokenId);
         return true;
     }
@@ -407,13 +420,15 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     function transferAndBurn(uint256 tokenId, address to)
         public
         tokenExists(tokenId)
-        isTokenOwnerOrOwner(tokenId)
+        isManager
         tokenIsListedForSale(tokenId)
         nonReentrant
         returns (bool)
     {
+        delete s_tokenIdIsListedForSale[tokenId];
         _transfer(ownerOf(tokenId), to, tokenId);
-        burn(tokenId);
+        _withdraw(tokenId);
+        _burn(tokenId);
         return true;
     }
 
@@ -430,20 +445,11 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         public
         override
         tokenExists(tokenId)
-        isTokenOwnerOrOwner(tokenId)
-        tokenIsListedForSale(tokenId)
+        isOwnerOrManager(tokenId)
+        tokenIsNotListedForSale(tokenId)
         nonReentrant
     {
-        address[] memory assets = s_tokenIdToAssets[tokenId];
-
-        for (uint256 i = 0; i < assets.length; i++) {
-            if (assets[i] == address(0)) {
-                _withdrawNativeCurrency(tokenId, s_collateralDeposited[tokenId][assets[i]]);
-            } else {
-                _withdrawSingleToken(tokenId, assets[i], s_collateralDeposited[tokenId][assets[i]]);
-            }
-        }
-
+        _withdraw(tokenId);
         _burn(tokenId);
     }
 
@@ -482,7 +488,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         }
 
         s_collateralDeposited[tokenId][address(0)] = 0;
-        emit WithdrawNativeCurrency(msg.sender, amount);
+        emit WithdrawNativeCurrency(ownerOf(tokenId), amount);
 
         (bool success,) = address(payable(ownerOf(tokenId))).call{value: amount}("");
         if (!success) {
@@ -505,10 +511,30 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     function _withdrawSingleToken(uint256 tokenId, address tokenAddress, uint256 amount) private moreThanZero(amount) {
         // Effect
         s_collateralDeposited[tokenId][tokenAddress] = 0;
-        emit WithdrawERC20Token(msg.sender, tokenAddress, amount);
+        emit WithdrawERC20Token(ownerOf(tokenId), tokenAddress, amount);
         // Interaction
         if (!IERC20Metadata(tokenAddress).transfer(address(payable(ownerOf(tokenId))), amount)) {
             revert DeCup__TransferFailed();
+        }
+    }
+
+    /**
+     * @notice Function to withdraw all collateral assets from a token
+     * @param tokenId The ID of the NFT to withdraw collateral from
+     * @dev Internal function used by burn function to withdraw collateral assets
+     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
+     * @dev Emits WithdrawNativeCurrency and WithdrawERC20Token events for each successful withdrawal
+     */
+    function _withdraw(uint256 tokenId) private {
+        address[] memory assets = s_tokenIdToAssets[tokenId];
+        delete s_tokenIdToAssets[tokenId];
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (assets[i] == address(0)) {
+                _withdrawNativeCurrency(tokenId, s_collateralDeposited[tokenId][assets[i]]);
+            } else {
+                _withdrawSingleToken(tokenId, assets[i], s_collateralDeposited[tokenId][assets[i]]);
+            }
         }
     }
 
@@ -610,7 +636,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @param tokenAddress The address of the token to get the collateral for
      * @return The amount of collateral deposited for the given token ID and token address
      */
-    function getCollateralDeposited(uint256 tokenId, address tokenAddress) public view returns (uint256) {
+    function getCollateralBalance(uint256 tokenId, address tokenAddress) public view returns (uint256) {
         return s_collateralDeposited[tokenId][tokenAddress];
     }
 
@@ -624,16 +650,12 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Returns the total collateral value (TCL) for a given token ID
+     * @notice Returns the total collateral value (TCL) for a given token ID in USD
      * @param tokenId The ID of the token to get the TCL for
      * @return The total collateral value (TCL) for the given token ID
      */
-    function getTokenIdTCL(uint256 tokenId) public view returns (uint256) {
+    function _getTokenIdTCL(uint256 tokenId) internal view returns (uint256) {
         address[] memory assets = s_tokenIdToAssets[tokenId];
-        if (assets.length == 0) {
-            revert DeCup__TokenDoesNotExist();
-        }
-
         uint256 tcl = 0;
         for (uint256 i = 0; i < assets.length; i++) {
             if (assets[i] == address(0)) {
@@ -646,7 +668,24 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Returns the metadata URI for a given token ID in base64 JSON format
+     * @notice Returns the price of a token in USD with 8 decimals of precision
+     * @param tokenId The ID of the token to get the price for
+     * @return The price of the token in USD with 8 decimals of precision
+     * @dev Converts TCL from 18 decimals to 8 decimals precision
+     */
+    function getTokenPriceInUsd(uint256 tokenId) public view returns (uint256) {
+        address[] memory assets = s_tokenIdToAssets[tokenId];
+        if (assets.length == 0) {
+            revert DeCup__TokenDoesNotExist();
+        }
+
+        uint256 tcl = _getTokenIdTCL(tokenId); //retuns in 18 decimals
+
+        return (tcl * 1e8) / 1e18; //convert to 8 decimals
+    }
+
+    /**
+     * @notice Returns t(t  he metadata URI for a given token ID in base64 JSON format
      * @param _tokenId The ID of the token to get metadata for
      * @return A base64 encoded JSON string containing the token's metadata
      * @dev Overrides the ERC721 tokenURI function

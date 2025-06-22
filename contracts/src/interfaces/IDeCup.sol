@@ -27,9 +27,9 @@ interface IDeCup {
     function getTokenCounter() external view returns (uint256);
     function getIsListedForSale(uint256 tokenId) external view returns (bool);
     function getUsdcUSDValue(address tokenAddress, uint256 amount) external view returns (uint256);
-    function getCollateralDeposited(uint256 tokenId, address tokenAddress) external view returns (uint256);
+    function getCollateralBalance(uint256 tokenId, address tokenAddress) external view returns (uint256);
     function getTokenAssetsList(uint256 tokenId) external view returns (address[] memory);
-    function getTokenIdTCL(uint256 tokenId) external view returns (uint256);
+    function getTokenPriceInUsd(uint256 tokenId) external view returns (uint256);
     function tokenURI(uint256 _tokenId) external view returns (string memory);
     function ownerOf(uint256 tokenId) external view returns (address);
 

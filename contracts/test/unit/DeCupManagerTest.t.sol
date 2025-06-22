@@ -11,7 +11,7 @@ import {stdError} from "forge-std/StdError.sol";
 
 contract DeCupManagerTest is Test {
     DeCupManager public decupManager;
-    DeCup public s_deCup;
+    DeCup public deCup;
     HelperConfigDeCup public s_configDeCup;
 
     address public user1 = makeAddr("user1");
@@ -23,7 +23,7 @@ contract DeCupManagerTest is Test {
     uint64 public constant TEST_NETWORK_ID = 1;
 
     // Events for testing
-    event Fund(address indexed user, uint256 amount);
+    event Deposit(address indexed user, uint256 amount);
     event Withdraw(address indexed user, uint256 amount);
     event CancelSale(uint256 indexed saleId);
     event CreateSale(uint256 indexed saleId, uint256 indexed tokenId, address indexed sellerAddress);
@@ -32,11 +32,11 @@ contract DeCupManagerTest is Test {
 
     function setUp() public {
         DeployDeCup deployer = new DeployDeCup();
-        (s_deCup, s_configDeCup) = deployer.run();
+        (deCup, s_configDeCup) = deployer.run();
 
         HelperConfigDeCupManager helperConfigDCM = new HelperConfigDeCupManager();
         HelperConfigDeCupManager.NetworkConfig memory networkConfigDCM = helperConfigDCM.getConfig();
-        decupManager = new DeCupManager(address(s_deCup), networkConfigDCM.pricePriceFeed);
+        decupManager = new DeCupManager(address(deCup), networkConfigDCM.pricePriceFeed);
 
         // Fund test users
         vm.deal(user1, STARTING_BALANCE);
@@ -45,11 +45,17 @@ contract DeCupManagerTest is Test {
 
         // Mint a test NFT to user1
         vm.prank(user1);
-        (bool success,) = address(s_deCup).call{value: 1 ether}("");
+        (bool success,) = address(deCup).call{value: 1 ether}("");
         assertTrue(success);
 
         vm.prank(msg.sender);
-        s_deCup.transferOwnership(address(decupManager));
+        deCup.transferOwnership(address(decupManager));
+    }
+
+    modifier createSale(address _user) {
+        vm.prank(_user);
+        decupManager.createSale(TEST_TOKEN_ID, _user);
+        _;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -57,7 +63,7 @@ contract DeCupManagerTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testDeCupManagerConstructor() public view {
-        assertEq(address(decupManager.getDeCupAddress()), address(s_deCup));
+        assertEq(address(decupManager.getDeCupAddress()), address(deCup));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -66,16 +72,19 @@ contract DeCupManagerTest is Test {
 
     function testReceiveFunctionAddsCollateral() public {
         uint256 fundAmount = 1 ether;
+        console.log("fundAmount", fundAmount);
 
         vm.expectEmit(true, false, false, true);
-        emit Fund(user1, fundAmount);
+        emit Deposit(user1, fundAmount);
 
         vm.prank(user1);
         (bool success,) = address(decupManager).call{value: fundAmount}("");
         assertTrue(success);
 
-        assertEq(decupManager.s_userToCollateral(user1), fundAmount);
+        assertEq(decupManager.balanceOf(user1), fundAmount);
     }
+    //1000000000000000000
+    //1000000000000000000
 
     function testReceiveRevertsWithZeroAmount() public {
         vm.prank(user1);
@@ -110,14 +119,14 @@ contract DeCupManagerTest is Test {
         address newOwner = makeAddr("newOwner");
 
         // Get current owner of DeCup (should be decupManager)
-        address currentOwner = s_deCup.owner();
+        address currentOwner = deCup.owner();
         assertEq(currentOwner, address(decupManager));
 
         // Transfer ownership
         decupManager.transferOwnershipOfDeCup(newOwner);
 
         // Verify new owner
-        assertEq(s_deCup.owner(), newOwner);
+        assertEq(deCup.owner(), newOwner);
     }
 
     function testNonOwnerCannotTransferDeCupOwnership() public {
@@ -149,6 +158,12 @@ contract DeCupManagerTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testCreateSaleSuccess() public {
+        vm.prank(user1); // Different user than token owner
+        decupManager.createSale(TEST_TOKEN_ID, address(0));
+        assertEq(decupManager.getSaleOwner(0), user1);
+    }
+
+    function testCreateSaleRevertsIfNotOwner() public {
         // First need to ensure user1 owns the token but isn't the caller
         vm.prank(user2); // Different user than token owner
         vm.expectRevert(DeCupManager.DeCupManager__NotOwner.selector);
@@ -158,7 +173,7 @@ contract DeCupManagerTest is Test {
     function testCreateSaleRevertsIfTokenAlreadyListed() public {
         // First list the token
         vm.prank(address(decupManager));
-        s_deCup.listForSale(TEST_TOKEN_ID);
+        deCup.listForSale(TEST_TOKEN_ID);
 
         vm.prank(user2);
         vm.expectRevert(DeCupManager.DeCupManager__TokenListedForSale.selector);
@@ -210,26 +225,65 @@ contract DeCupManagerTest is Test {
                         BUY FUNCTION TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testBuyRevertsWithInsufficientETH() public {
+    function testBuyRevertsWithInsufficientETH() public createSale(user1) {
         uint256 insufficientAmount = 0.001 ether;
-
+        //console.log("TEST_PRICE_USD", TEST_PRICE_USD); //100 000 000 000 000 000 000
+        //console.log("priceInETH", decupManager.getPriceInETH(TEST_PRICE_USD)); //100 | 000 000 000 000 000 000
+        //1 000 000 000 000 000
+        //TEST_PRICE_USD 100 0000 0000
         vm.prank(user2);
         vm.expectRevert(DeCupManager.DeCupManager__InsufficientETH.selector);
-        decupManager.buy{value: insufficientAmount}(0, TEST_PRICE_USD);
+        decupManager.buy{value: insufficientAmount}(0, TEST_PRICE_USD, msg.sender, false);
     }
 
-    function testBuySuccessWithSufficientETH() public {
-        uint256 requiredETH = decupManager.getPriceInETH(TEST_PRICE_USD);
+    function testBuySuccessWithSufficientETH() public createSale(user1) {
+        uint256 tokenPrice = deCup.getTokenPriceInUsd(0);
+        uint256 requiredETH = decupManager.getPriceInETH(tokenPrice);
         uint256 saleId = 0;
+
+        console.log("tokenPrice", tokenPrice);
+        console.log("requiredETH", requiredETH);
 
         vm.expectEmit(true, true, false, true);
         emit Buy(saleId, user2, requiredETH);
 
         vm.prank(user2);
-        decupManager.buy{value: requiredETH}(saleId, TEST_PRICE_USD);
+        decupManager.buy{value: requiredETH}(saleId, tokenPrice, user2, false);
 
-        assertEq(decupManager.s_buyerPaiedAmount(user2, saleId), requiredETH);
-        assertEq(decupManager.s_saleIdToBuyerAddress(saleId), user2);
+        assertEq(deCup.ownerOf(TEST_TOKEN_ID), user2);
+    }
+
+    function testBuyAndBurnSuccessWithSufficientETH() public {
+        uint256 decupTCL = deCup.getTokenPriceInUsd(TEST_TOKEN_ID); //2000 0000 0000
+        uint256 requiredETH = decupManager.getPriceInETH(decupTCL); //2000 000 000 000 000 000 000
+        console.log("decupTCL", decupTCL);
+        console.log("requiredETH", requiredETH); //1 000 000 000 000 000 000
+        console.log("user1", user1);
+        console.log("user2", user2);
+        console.log("msg.sender", msg.sender);
+
+        uint256 user1BalanceBefore = address(user1).balance;
+        uint256 user2BalanceBefore = address(user2).balance;
+        uint256 saleId = 0;
+
+        vm.prank(user1);
+        decupManager.createSale(TEST_TOKEN_ID, user1);
+        assertEq(decupManager.getSaleOwner(0), user1);
+
+        vm.expectEmit(true, true, false, true);
+        emit Buy(saleId, user2, requiredETH);
+
+        vm.prank(user2);
+        decupManager.buy{value: requiredETH}(saleId, decupTCL, user2, true);
+
+        vm.prank(user1);
+        decupManager.withdrawFunds();
+
+        uint256 user1BalanceAfter = address(user1).balance;
+        uint256 user2BalanceAfter = address(user2).balance;
+
+        assertEq(user1BalanceAfter, user1BalanceBefore + requiredETH);
+        assertEq(user2BalanceAfter, user2BalanceBefore);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -249,7 +303,7 @@ contract DeCupManagerTest is Test {
     }
 
     function testGetDeCupAddress() public view {
-        assertEq(decupManager.getDeCupAddress(), address(s_deCup));
+        assertEq(decupManager.getDeCupAddress(), address(deCup));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -268,7 +322,7 @@ contract DeCupManagerTest is Test {
         assertTrue(success);
 
         // Verify funding
-        assertEq(decupManager.s_userToCollateral(user1), fundAmount);
+        assertEq(decupManager.balanceOf(user1), fundAmount);
     }
 
     function testMultipleUserFunding() public {
@@ -286,8 +340,8 @@ contract DeCupManagerTest is Test {
         assertTrue(success2);
 
         // Verify balances
-        assertEq(decupManager.s_userToCollateral(user1), amount1);
-        assertEq(decupManager.s_userToCollateral(user2), amount2);
+        assertEq(decupManager.balanceOf(user1), amount1);
+        assertEq(decupManager.balanceOf(user2), amount2);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -317,7 +371,7 @@ contract DeCupManagerTest is Test {
         (bool success,) = address(decupManager).call{value: amount}("");
         assertTrue(success);
 
-        assertEq(decupManager.s_userToCollateral(user1), amount);
+        assertEq(decupManager.balanceOf(user1), amount);
     }
 
     function testFuzzSetCcipCollateral(uint256 amount) public {
@@ -329,10 +383,11 @@ contract DeCupManagerTest is Test {
     }
 
     function testFuzzGetPriceInETH(uint256 priceInUSD) public view {
-        vm.assume(priceInUSD > 0 && priceInUSD <= 1e15); // Reasonable bounds
+        uint256 minPrice = decupManager.s_ccipCollateral();
+        uint256 minPriceUsd = (minPrice * decupManager.getEthUsdPrice()) / 1e18;
+        vm.assume(priceInUSD > minPriceUsd && priceInUSD <= 1e15); // Reasonable bounds
 
         uint256 priceInETH = decupManager.getPriceInETH(priceInUSD);
-        uint256 minPrice = decupManager.s_ccipCollateral();
 
         assertTrue(priceInETH >= minPrice);
     }

@@ -19,33 +19,19 @@ import {Client} from "@chainlink/contracts/src/v0.8/ccip/libraries/Client.sol";
  */
 contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
     // Interfaces
-    /// @notice Interface to interact with the DeCup NFT contract
     IDeCup private s_nft;
 
     // Errors
-    /// @notice Thrown when a token is not listed for sale
     error DeCupManager__TokenNotListedForSale();
-    /// @notice Thrown when a token is already listed for sale
     error DeCupManager__TokenListedForSale();
-    /// @notice Thrown when the caller is not the owner of the token or sale
     error DeCupManager__NotOwner();
-    /// @notice Thrown when insufficient ETH is provided for the operation
     error DeCupManager__InsufficientETH();
-    /// @notice Thrown when a sale with the specified ID is not found
     error DeCupManager__SaleNotFound();
-    /// @notice Thrown when the user has insufficient funds for withdrawal
     error DeCupManager__InsufficientFunds();
-    /// @notice Thrown when a transfer operation fails
     error DeCupManager__TransferFailed();
-    /// @notice Thrown when an amount is zero but should be greater than zero
     error DeCupManager__MoreThanZero();
-    /// @notice Thrown when trying to cancel a sale that is not finalized
-    error DeCupManager__SaleNotFinalized();
-    /// @notice Thrown when the caller is not the token owner
     error DeCupManager__NotTokenOwner();
-    /// @notice Thrown when the caller is not the authorized CCIP router
     error DeCupManager__NotRouter();
-    /// @notice Thrown when an invalid cross-chain action is received
     error DeCupManager__InvalidAction();
 
     /**
@@ -98,67 +84,31 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
         address buyerAddress;
         bool isBurn;
         Order order;
+        uint256 priceInUsd;
     }
 
     // State variables
-    /// @notice Collateral amount required for CCIP operations (in wei)
     uint256 public s_ccipCollateral;
-    /// @notice Address of the price feed contract for ETH/USD conversion
     address public s_priceFeedAddress;
-    /// @notice Counter for generating unique sale IDs
     uint256 public s_saleCounter;
-    /// @notice Payment method for CCIP fees (limited to Native for simplicity)
     PayFeesIn public s_payFeesIn = PayFeesIn.Native;
 
-    /// @notice Mapping of user addresses to their collateral balances
-    mapping(address user => uint256 collateral) public s_userToCollateral;
-    /// @notice Mapping of sale IDs to buyer addresses
-    mapping(uint256 saleId => address buyerAddress) public s_saleIdToBuyerAddress;
-    /// @notice Mapping of buyer addresses to their payment amounts for specific sales
-    mapping(address buyer => mapping(uint256 => uint256)) public s_buyerPaiedAmount;
-    /// @notice Mapping of chain IDs to sale IDs to sale orders
+    mapping(address user => uint256 collateral) private s_userToCollateral;
+    //mapping(uint256 saleId => address buyerAddress) public s_saleIdToBuyerAddress;
+    //mapping(address buyer => mapping(uint256 => uint256)) public s_buyerPaiedAmount;
     mapping(uint256 chainId => mapping(uint256 saleId => Order saleOrder)) public s_chainIdToSaleIdToSaleOrder;
-    /// @notice Mapping of chain IDs to their corresponding CCIP chain selectors
     mapping(uint256 chainId => uint64 chainSelector) public s_chainIdToChainSelector;
-    /// @notice Mapping of chain IDs to their LINK token addresses
     mapping(uint256 chainId => address linkAddress) public s_chainIdToLinkAddress;
-    /// @notice Mapping of chain IDs to their receiver contract addresses
     mapping(uint256 chainId => address receiverAddress) public s_chainIdToReceiverAddress;
-    /// @notice Mapping of chain IDs to their CCIP router addresses
     mapping(uint256 chainId => address routerAddress) public s_chainIdToRouterAddress;
 
     // Events
-    /// @notice Emitted when a user adds collateral to their account
-    /// @param user The address of the user
-    /// @param amount The amount of collateral added
-    event Fund(address indexed user, uint256 amount);
-    /// @notice Emitted when a user withdraws collateral from their account
-    /// @param user The address of the user
-    /// @param amount The amount of collateral withdrawn
+    event Deposit(address indexed user, uint256 amount);
     event Withdraw(address indexed user, uint256 amount);
-    /// @notice Emitted when a sale is cancelled
-    /// @param saleId The ID of the cancelled sale
     event CancelSale(uint256 indexed saleId);
-    /// @notice Emitted when a new sale is created
-    /// @param saleId The ID of the created sale
-    /// @param tokenId The ID of the token being sold
-    /// @param sellerAddress The address of the seller
     event CreateSale(uint256 indexed saleId, uint256 indexed tokenId, address indexed sellerAddress);
-    /// @notice Emitted when a buy order is initiated
-    /// @param saleId The ID of the sale
-    /// @param buyerAddress The address of the buyer
-    /// @param amountPaied The amount paid by the buyer
     event Buy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
-    /// @notice Emitted when a buy order is finalized
-    /// @param saleId The ID of the sale
-    /// @param buyerAddress The address of the buyer
-    /// @param amountPaied The amount paid by the buyer
-    event FinalizeBuy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
-    /// @notice Emitted when a cross-chain message is received
-    /// @param messageId The ID of the received message
     event CrossChainReceived(bytes32 messageId);
-    /// @notice Emitted when a cross-chain message is sent
-    /// @param messageId The ID of the sent message
     event CrossChainSent(bytes32 messageId);
 
     //Modifiers
@@ -229,7 +179,12 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
      * @dev The collateral is removed from the contract and the user's balance is updated
      */
     function withdrawFunds() external nonReentrant {
-        _removeCollateral(msg.sender);
+        uint256 amount = s_userToCollateral[msg.sender];
+        if (amount == 0) {
+            revert DeCupManager__InsufficientFunds();
+        }
+        _removeCollateral(msg.sender, amount);
+        payable(address(msg.sender)).transfer(address(this).balance);
     }
 
     /**
@@ -248,11 +203,10 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
      * @dev Increments the sale ID counter and emits a SaleCreated event (saleId, tokenId, sellerAddress)
      * @dev Lists the token for sale in the NFT contract after creating the order
      * @param tokenId The ID of the token to be sold
-     * @param sellerAddress The address of the seller
      * @param beneficiaryAddress The address that will receive payment
      * @param chainId The ID of the target chain where the sale will be created
      */
-    function createCrossSale(uint256 tokenId, address sellerAddress, address beneficiaryAddress, uint256 chainId)
+    function createCrossSale(uint256 tokenId, address beneficiaryAddress, uint256 chainId)
         external
         payable
         moreThanZero(msg.value)
@@ -281,12 +235,13 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
             saleId: 0,
             order: Order({
                 tokenId: tokenId,
-                sellerAddress: sellerAddress,
+                sellerAddress: msg.sender,
                 beneficiaryAddress: beneficiaryAddress,
                 chainId: chainId
             }),
             buyerAddress: address(0),
-            isBurn: false
+            isBurn: false,
+            priceInUsd: 0
         });
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
@@ -341,7 +296,8 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
             saleId: saleId,
             order: Order({tokenId: tokenId, sellerAddress: msg.sender, beneficiaryAddress: address(0), chainId: chainId}),
             buyerAddress: address(0),
-            isBurn: false
+            isBurn: false,
+            priceInUsd: 0
         });
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
@@ -383,19 +339,20 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
      * @param chainId The ID of the source chain where the NFT is located
      * @param isBurn Whether to burn the token after transfer
      */
-    function buyCrossSale(uint256 saleId, uint256 priceInUsd, uint256 chainId, bool isBurn)
-        external
-        payable
-        nonReentrant
-    {
+    function buyCrossSale(
+        uint256 saleId,
+        uint256 priceInUsd,
+        address buyerBeneficiaryAddress,
+        uint256 chainId,
+        bool isBurn
+    ) external payable nonReentrant {
         uint256 priceInETH = getPriceInETHIncludingCollateral(priceInUsd);
         Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[block.chainid][saleId];
         if (msg.value < priceInETH) {
             revert DeCupManager__InsufficientETH();
         }
-        s_buyerPaiedAmount[msg.sender][saleId] = msg.value;
-        s_saleIdToBuyerAddress[saleId] = msg.sender;
         emit Buy(saleId, msg.sender, priceInETH);
+        _addCollateral(saleOrder.beneficiaryAddress, priceInETH);
         // Interactions
         // Call internal ccip function to transfer token to buyer
 
@@ -403,8 +360,9 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
             action: CrossChainAction.Buy,
             saleId: saleId,
             order: saleOrder,
-            buyerAddress: msg.sender,
-            isBurn: isBurn
+            buyerAddress: buyerBeneficiaryAddress,
+            isBurn: isBurn,
+            priceInUsd: priceInUsd
         });
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
             receiver: abi.encode(s_chainIdToReceiverAddress[chainId]),
@@ -457,6 +415,7 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
                 messageData.order.tokenId,
                 messageData.order.sellerAddress,
                 messageData.buyerAddress,
+                messageData.priceInUsd,
                 messageData.isBurn
             );
         } else {
@@ -469,6 +428,48 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                             PUBLIC FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Buys a DeCup NFT on the same chain as the manager contract
+     * @dev Buys a DeCup NFT from a sale order
+     * @dev The buyer must send sufficient ETH to cover the price of the NFT
+     * @param saleId The ID of the sale to buy
+     * @param priceInUsd The price of the NFT in USD
+     * @param isBurn Whether to burn the NFT after transfer
+     */
+    function buy(uint256 saleId, uint256 priceInUsd, address buyerBeneficiaryAddress, bool isBurn)
+        public
+        payable
+        nonReentrant
+    {
+        Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[block.chainid][saleId];
+        // Checks
+        if (saleOrder.sellerAddress == address(0)) {
+            revert DeCupManager__SaleNotFound();
+        }
+        uint256 tokenId = saleOrder.tokenId;
+        if (!s_nft.getIsListedForSale(tokenId)) {
+            revert DeCupManager__TokenNotListedForSale();
+        }
+        if (s_nft.ownerOf(tokenId) != saleOrder.sellerAddress) {
+            revert DeCupManager__NotOwner();
+        }
+
+        uint256 priceInETH = getPriceInETH(priceInUsd);
+        if (msg.value < priceInETH) {
+            revert DeCupManager__InsufficientETH();
+        }
+        // Effects
+        emit Buy(saleId, msg.sender, priceInETH);
+        _addCollateral(saleOrder.beneficiaryAddress, priceInETH);
+
+        // Interactions
+        (, bool success) =
+            _buy(saleId, saleOrder.tokenId, saleOrder.sellerAddress, buyerBeneficiaryAddress, priceInUsd, isBurn);
+        if (!success) {
+            revert DeCupManager__TransferFailed();
+        }
+    }
 
     /**
      * @notice Set the CCIP collateral amount required for cross-chain transfers
@@ -545,14 +546,24 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
      * @return saleId The ID of the executed sale
      * @return success Whether the transfer was successful
      */
-    function _buy(uint256 saleId, uint256 tokenId, address sellerAddress, address buyerAddress, bool isBurn)
-        internal
-        returns (uint256, bool)
-    {
+    function _buy(
+        uint256 saleId,
+        uint256 tokenId,
+        address sellerAddress,
+        address buyerAddress,
+        uint256 priceInUsd,
+        bool isBurn
+    ) internal returns (uint256, bool) {
         bool success = false;
+
         if (s_nft.ownerOf(tokenId) != sellerAddress) {
             revert DeCupManager__NotTokenOwner();
         }
+
+        if (priceInUsd < s_nft.getTokenPriceInUsd(tokenId)) {
+            revert DeCupManager__InsufficientFunds();
+        }
+
         if (isBurn) {
             (success) = s_nft.transferAndBurn(tokenId, buyerAddress);
             if (!success) {
@@ -595,7 +606,6 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
      * @notice Cancels a sale order
      * @dev Deletes the sale order from the mapping chainId => saleId => saleOrder
      * @dev Verifies the caller is the seller of the sale order
-     * @dev Verifies the sale has not been finalized (no buyer assigned)
      * @dev Emits a SaleCanceled event (saleId)
      * @param saleId The ID of the sale to cancel
      * @param sellerAddress The address of the seller canceling the sale
@@ -606,39 +616,19 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
         if (saleOrder.sellerAddress != sellerAddress) {
             revert DeCupManager__NotOwner();
         }
-        if (s_saleIdToBuyerAddress[saleId] != address(0)) {
-            revert DeCupManager__SaleNotFinalized();
-        }
         delete s_chainIdToSaleIdToSaleOrder[chainId][saleId];
         emit CancelSale(saleId);
     }
-
-    /**
-     * @notice Finalizes a buy order for a DeCup NFT
-     * @dev Transfers the token to the buyer and releases the funds to the seller
-     * @dev This function is supposed to be called by CCIP in response to the CCIP message call
-     * @param saleId The ID of the sale to finalize
-     * @param chainId The ID of the chain where the sale exists
-     */
-    function _finalizeBuy(uint256 saleId, uint64 chainId) internal {
-        Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[chainId][saleId];
-        address buyerAddress = s_saleIdToBuyerAddress[saleId];
-        uint256 amountPaied = s_buyerPaiedAmount[buyerAddress][saleId];
-        s_buyerPaiedAmount[buyerAddress][saleId] = 0;
-        s_saleIdToBuyerAddress[saleId] = address(0);
-        _addCollateral(saleOrder.sellerAddress, amountPaied);
-        emit FinalizeBuy(saleId, buyerAddress, amountPaied);
-    }
-
     /**
      * @notice Adds collateral to the contract
      * @dev Adds collateral to the contract and emits a Fund event (user, amount)
      * @param user The address of the user adding collateral
      * @param amount The amount of collateral to add
      */
+
     function _addCollateral(address user, uint256 amount) internal {
         s_userToCollateral[user] += amount;
-        emit Fund(user, amount);
+        emit Deposit(user, amount);
     }
 
     /**
@@ -646,11 +636,7 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
      * @dev Removes collateral from the contract and emits a Withdraw event (user, amount)
      * @param user The address of the user removing collateral
      */
-    function _removeCollateral(address user) internal {
-        uint256 amount = s_userToCollateral[user];
-        if (amount == 0) {
-            revert DeCupManager__InsufficientFunds();
-        }
+    function _removeCollateral(address user, uint256 amount) internal {
         s_userToCollateral[user] -= amount;
         emit Withdraw(user, amount);
     }
@@ -714,6 +700,16 @@ contract DeCupManager is Ownable, IAny2EVMMessageReceiver, ReentrancyGuard {
      */
     function balanceOf(address user) public view returns (uint256) {
         return s_userToCollateral[user];
+    }
+
+    /**
+     * @notice Returns the owner of a sale
+     * @dev Returns the owner of a sale
+     * @param saleId The ID of the sale
+     * @return The owner of the sale
+     */
+    function getSaleOwner(uint256 saleId) public view returns (address) {
+        return s_chainIdToSaleIdToSaleOrder[block.chainid][saleId].sellerAddress;
     }
 }
 
