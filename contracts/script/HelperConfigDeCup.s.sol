@@ -56,6 +56,27 @@ contract HelperConfigDeCup is Script {
         });
     }
 
+    function getFujiAvlConfig() public view returns (NetworkConfig memory) {
+        string memory imageURI = svgToImageURI(vm.readFile("./img/avalanche-mug.svg"));
+
+        address[] memory priceFeedAddresses = new address[](3);
+        priceFeedAddresses[0] = 0x5498BB86BC934c8D34FDA08E81D444153d0D06aD; // AVAX / USD
+        priceFeedAddresses[1] = 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43; // BTC / USD
+        priceFeedAddresses[2] = 0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E; // USDC / USD
+
+        address[] memory tokenAddresses = new address[](3);
+        tokenAddresses[0] = 0xd00ae08403B9bbb9124bB305C09058E32C39A48c; // WAVAX
+        tokenAddresses[1] = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063; // WBTC
+        tokenAddresses[2] = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC
+
+        return NetworkConfig({
+            imageURI: imageURI,
+            priceFeedAddresses: priceFeedAddresses,
+            tokenAddresses: tokenAddresses,
+            defaultPriceFeed: 0x5498BB86BC934c8D34FDA08E81D444153d0D06aD
+        });
+    }
+
     function getOrCreateAnvilEthConfig() public returns (NetworkConfig memory) {
         string memory imageURI = svgToImageURI(vm.readFile("./img/decup.svg"));
         if (activeNetworkConfig.priceFeedAddresses.length > 0) {

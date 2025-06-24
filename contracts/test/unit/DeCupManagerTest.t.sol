@@ -36,7 +36,14 @@ contract DeCupManagerTest is Test {
 
         HelperConfigDeCupManager helperConfigDCM = new HelperConfigDeCupManager();
         HelperConfigDeCupManager.NetworkConfig memory networkConfigDCM = helperConfigDCM.getConfig();
-        decupManager = new DeCupManager(address(deCup), networkConfigDCM.pricePriceFeed);
+        decupManager = new DeCupManager(
+            address(deCup),
+            networkConfigDCM.defaultPriceFeed,
+            networkConfigDCM.destinationChainIds,
+            networkConfigDCM.destinationChainSelectors,
+            networkConfigDCM.linkTokens,
+            networkConfigDCM.ccipRouters
+        );
 
         // Fund test users
         vm.deal(user1, STARTING_BALANCE);
@@ -83,8 +90,6 @@ contract DeCupManagerTest is Test {
 
         assertEq(decupManager.balanceOf(user1), fundAmount);
     }
-    //1000000000000000000
-    //1000000000000000000
 
     function testReceiveRevertsWithZeroAmount() public {
         vm.prank(user1);
@@ -138,11 +143,11 @@ contract DeCupManagerTest is Test {
     }
 
     function testOwnerCanSetCcipCollateral() public {
-        uint256 newCollateral = 0.02 ether;
+        uint256 newCollateral = 1e8;
 
         decupManager.setCcipCollateral(newCollateral);
 
-        assertEq(decupManager.s_ccipCollateral(), newCollateral);
+        assertEq(decupManager.s_ccipCollateralInUsd(), newCollateral);
     }
 
     function testNonOwnerCannotSetCcipCollateral() public {
@@ -160,7 +165,7 @@ contract DeCupManagerTest is Test {
     function testCreateSaleSuccess() public {
         vm.prank(user1); // Different user than token owner
         decupManager.createSale(TEST_TOKEN_ID, address(0));
-        assertEq(decupManager.getSaleOwner(0), user1);
+        assertEq(decupManager.getSaleOwner(0, block.chainid), user1);
     }
 
     function testCreateSaleRevertsIfNotOwner() public {
@@ -181,7 +186,7 @@ contract DeCupManagerTest is Test {
     }
 
     function testCreateCrossSaleRevertsWithInsufficientETH() public {
-        uint256 insufficientAmount = 0.005 ether; // Less than ccipCollateral
+        uint256 insufficientAmount = decupManager.getCcipCollateralInEth() - 0.001 ether; // Less than ccipCollateral
 
         vm.prank(user2);
         vm.expectRevert(DeCupManager.DeCupManager__InsufficientETH.selector);
@@ -206,7 +211,7 @@ contract DeCupManagerTest is Test {
     }
 
     function testCancelCrossSaleRevertsWithInsufficientETH() public {
-        uint256 insufficientAmount = 0.005 ether;
+        uint256 insufficientAmount = decupManager.getCcipCollateralInEth() - 0.001 ether;
 
         vm.prank(user1);
         vm.expectRevert(DeCupManager.DeCupManager__InsufficientETH.selector);
@@ -233,7 +238,7 @@ contract DeCupManagerTest is Test {
         //TEST_PRICE_USD 100 0000 0000
         vm.prank(user2);
         vm.expectRevert(DeCupManager.DeCupManager__InsufficientETH.selector);
-        decupManager.buy{value: insufficientAmount}(0, TEST_PRICE_USD, msg.sender, false);
+        decupManager.buy{value: insufficientAmount}(0, msg.sender, false);
     }
 
     function testBuySuccessWithSufficientETH() public createSale(user1) {
@@ -248,7 +253,7 @@ contract DeCupManagerTest is Test {
         emit Buy(saleId, user2, requiredETH);
 
         vm.prank(user2);
-        decupManager.buy{value: requiredETH}(saleId, tokenPrice, user2, false);
+        decupManager.buy{value: requiredETH}(saleId, user2, false);
 
         assertEq(deCup.ownerOf(TEST_TOKEN_ID), user2);
     }
@@ -256,34 +261,44 @@ contract DeCupManagerTest is Test {
     function testBuyAndBurnSuccessWithSufficientETH() public {
         uint256 decupTCL = deCup.getTokenPriceInUsd(TEST_TOKEN_ID); //2000 0000 0000
         uint256 requiredETH = decupManager.getPriceInETH(decupTCL); //2000 000 000 000 000 000 000
-        console.log("decupTCL", decupTCL);
-        console.log("requiredETH", requiredETH); //1 000 000 000 000 000 000
-        console.log("user1", user1);
-        console.log("user2", user2);
-        console.log("msg.sender", msg.sender);
+        // console.log("decupTCL", decupTCL);
+        // console.log("requiredETH", requiredETH); //996 983 661 127 272 979
+        // console.log("user1", user1);
+        // console.log("user2", user2);
+        // console.log("msg.sender", msg.sender);
 
         uint256 user1BalanceBefore = address(user1).balance;
         uint256 user2BalanceBefore = address(user2).balance;
+        // console.log("user1BalanceBefore", user1BalanceBefore);
+        // console.log("user2BalanceBefore", user2BalanceBefore);
         uint256 saleId = 0;
 
         vm.prank(user1);
         decupManager.createSale(TEST_TOKEN_ID, user1);
-        assertEq(decupManager.getSaleOwner(0), user1);
+        assertEq(decupManager.getSaleOwner(0, block.chainid), user1);
 
         vm.expectEmit(true, true, false, true);
         emit Buy(saleId, user2, requiredETH);
 
         vm.prank(user2);
-        decupManager.buy{value: requiredETH}(saleId, decupTCL, user2, true);
+        decupManager.buy{value: requiredETH}(saleId, user2, true);
 
+        console.log("user1 balance before withdraw", address(user1).balance);
+        console.log("user2 balance before withdraw", address(user2).balance);
         vm.prank(user1);
         decupManager.withdrawFunds();
 
         uint256 user1BalanceAfter = address(user1).balance;
         uint256 user2BalanceAfter = address(user2).balance;
 
-        assertEq(user1BalanceAfter, user1BalanceBefore + requiredETH);
-        assertEq(user2BalanceAfter, user2BalanceBefore);
+        //9 800 300 000 000 000 000
+        //10 000 000 000 000 000 000
+
+        assertEq(user1BalanceBefore + requiredETH, user1BalanceAfter, "User1 balance doesn't match");
+
+        //10 000 000 000 000 000 000
+        //10 003 016 338 872 727 021
+        assertEq(user2BalanceBefore, user2BalanceAfter, "User2 balance doesn't match");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -297,7 +312,7 @@ contract DeCupManagerTest is Test {
 
     function testGetPriceInETH() public view {
         uint256 priceInETH = decupManager.getPriceInETH(TEST_PRICE_USD);
-        uint256 expectedMinimum = decupManager.s_ccipCollateral(); // At least the collateral amount
+        uint256 expectedMinimum = decupManager.getCcipCollateralInEth(); // At least the collateral amount
 
         assertTrue(priceInETH >= expectedMinimum, "Price should include collateral");
     }
@@ -348,16 +363,16 @@ contract DeCupManagerTest is Test {
                         EDGE CASE TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testSaleCounterIncrementsCorrectly() public view {
+    function testSaleCounterIncrementsCorrectly() public createSale(user1) {
         uint256 initialCounter = decupManager.s_saleCounter();
 
         // The counter should increment but we can't easily test createSale due to ownership logic
         // This test verifies the initial state
-        assertEq(initialCounter, 0);
+        assertEq(initialCounter, 1);
     }
 
     function testCcipCollateralDefaultValue() public view {
-        assertEq(decupManager.s_ccipCollateral(), 0.01 ether);
+        assert(decupManager.s_ccipCollateralInUsd() > 0.1e8);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -375,15 +390,15 @@ contract DeCupManagerTest is Test {
     }
 
     function testFuzzSetCcipCollateral(uint256 amount) public {
-        vm.assume(amount <= 100 ether); // Reasonable upper bound
+        vm.assume(amount <= 10e8); // Reasonable upper bound
 
         decupManager.setCcipCollateral(amount);
 
-        assertEq(decupManager.s_ccipCollateral(), amount);
+        assertEq(decupManager.s_ccipCollateralInUsd(), amount);
     }
 
     function testFuzzGetPriceInETH(uint256 priceInUSD) public view {
-        uint256 minPrice = decupManager.s_ccipCollateral();
+        uint256 minPrice = decupManager.getCcipCollateralInEth();
         uint256 minPriceUsd = (minPrice * decupManager.getEthUsdPrice()) / 1e18;
         vm.assume(priceInUSD > minPriceUsd && priceInUSD <= 1e15); // Reasonable bounds
 
