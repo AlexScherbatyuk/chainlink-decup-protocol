@@ -24,7 +24,7 @@ contract HelperConfigDeCupManager is Script {
     constructor() {
         if (block.chainid == 11155111) {
             activeNetworkConfig = getSepoliaEthConfig();
-        } else if (block.chainid == 43114) {
+        } else if (block.chainid == 43113) {
             activeNetworkConfig = getFujiAvlConfig();
         } else {
             activeNetworkConfig = getOrCreateAnvilEthConfig();

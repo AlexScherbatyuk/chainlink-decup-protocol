@@ -8,11 +8,14 @@ import {HelperConfigDeCup} from "script/HelperConfigDeCup.s.sol";
 import {DeployDeCup} from "script/DeployDeCup.s.sol";
 import {DeCup} from "src/DeCup.sol";
 import {stdError} from "forge-std/StdError.sol";
+import {DeployDeCupManager} from "script/DeployDeCupManager.s.sol";
 
 contract DeCupManagerTest is Test {
     DeCupManager public decupManager;
+    DeployDeCupManager public deployer;
     DeCup public deCup;
     HelperConfigDeCup public s_configDeCup;
+    HelperConfigDeCupManager public s_configDeCupManager;
 
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
@@ -31,19 +34,9 @@ contract DeCupManagerTest is Test {
     event FinalizeBuy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
 
     function setUp() public {
-        DeployDeCup deployer = new DeployDeCup();
-        (deCup, s_configDeCup) = deployer.run();
-
-        HelperConfigDeCupManager helperConfigDCM = new HelperConfigDeCupManager();
-        HelperConfigDeCupManager.NetworkConfig memory networkConfigDCM = helperConfigDCM.getConfig();
-        decupManager = new DeCupManager(
-            address(deCup),
-            networkConfigDCM.defaultPriceFeed,
-            networkConfigDCM.destinationChainIds,
-            networkConfigDCM.destinationChainSelectors,
-            networkConfigDCM.linkTokens,
-            networkConfigDCM.ccipRouters
-        );
+        // Deploy DeCupManager
+        deployer = new DeployDeCupManager();
+        (decupManager, deCup, s_configDeCup, s_configDeCupManager) = deployer.run();
 
         // Fund test users
         vm.deal(user1, STARTING_BALANCE);
@@ -54,9 +47,6 @@ contract DeCupManagerTest is Test {
         vm.prank(user1);
         (bool success,) = address(deCup).call{value: 1 ether}("");
         assertTrue(success);
-
-        vm.prank(msg.sender);
-        deCup.transferOwnership(address(decupManager));
     }
 
     modifier createSale(address _user) {
@@ -128,6 +118,7 @@ contract DeCupManagerTest is Test {
         assertEq(currentOwner, address(decupManager));
 
         // Transfer ownership
+        vm.prank(msg.sender);
         decupManager.transferOwnershipOfDeCup(newOwner);
 
         // Verify new owner
@@ -144,7 +135,7 @@ contract DeCupManagerTest is Test {
 
     function testOwnerCanSetCcipCollateral() public {
         uint256 newCollateral = 1e8;
-
+        vm.prank(msg.sender);
         decupManager.setCcipCollateral(newCollateral);
 
         assertEq(decupManager.s_ccipCollateralInUsd(), newCollateral);
@@ -392,6 +383,7 @@ contract DeCupManagerTest is Test {
     function testFuzzSetCcipCollateral(uint256 amount) public {
         vm.assume(amount <= 10e8); // Reasonable upper bound
 
+        vm.prank(msg.sender);
         decupManager.setCcipCollateral(amount);
 
         assertEq(decupManager.s_ccipCollateralInUsd(), amount);
