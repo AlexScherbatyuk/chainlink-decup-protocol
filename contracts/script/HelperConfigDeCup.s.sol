@@ -45,7 +45,7 @@ contract HelperConfigDeCup is Script {
 
         address[] memory tokenAddresses = new address[](3);
         tokenAddresses[0] = 0xdd13E55209Fd76AfE204dBda4007C227904f0a81; // WETH
-        tokenAddresses[1] = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063; // WBTC
+        tokenAddresses[1] = 0x29f2D40B0605204364af54EC677bD022dA425d03; // WBTC
         tokenAddresses[2] = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC
 
         return NetworkConfig({
