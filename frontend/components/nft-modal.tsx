@@ -17,6 +17,10 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trash2, Plus, Wallet } from "lucide-react"
 import { useNFTStore, type Asset, type NFTFormData } from "@/store/nft-store"
+import { depositNative, depositERC20, getTokenPriceInUsd, withdrawNativeDeCupManager, burnDeCupNFT, listDeCupNFTForSale, removeDeCupNFTFromSale } from "@/lib/contracts/interaction"
+import { getContractAddresses, getTokenAddresses } from "@/lib/contracts/addresses"
+import { useAccount, useChainId, useSwitchChain } from 'wagmi'
+
 
 interface NFTModalProps {
   isOpen: boolean
@@ -27,10 +31,9 @@ interface NFTModalProps {
 
 const AVAILABLE_TOKENS = [
   { value: "USDC", label: "USDC - USD Coin" },
-  { value: "USDT", label: "USDT - Tether USD" },
-  { value: "DAI", label: "DAI - Dai Stablecoin" },
-  { value: "ETH", label: "ETH - Ethereum" },
+  { value: "WAVAX", label: "WAVAX - Wrapped Avalanche" },
   { value: "WETH", label: "WETH - Wrapped Ethereum" },
+  { value: "Native", label: "Native currency" },
 ]
 
 const AVAILABLE_CHAINS = [
@@ -38,11 +41,22 @@ const AVAILABLE_CHAINS = [
   { value: "Fuji", label: "Avalanche Fuji" },
 ]
 
+const AVAILABLE_CHAINS_BY_ID = [
+  { value: 11155111, label: "Sepolia Testnet" },
+  { value: 43113, label: "Avalanche Fuji" },
+]
+
 export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps) {
   const { getNFTById, createNFT, updateNFT, getTotalCollateral } = useNFTStore()
+  const chainId = useChainId()
+  const { address, isConnected } = useAccount()
+
+  const [tokenPrice, setTokenPrice] = useState<number>(0)
+  const [totalCollateralInUsd, setTotalCollateralInUsd] = useState<number>(0)
 
   const [formData, setFormData] = useState<NFTFormData>({
     price: 0,
+    marketPrice: true,
     assets: [],
     chain: "Sepolia",
     beneficialWallet: "",
@@ -64,6 +78,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
         setFormData({
           tokenId: nft.tokenId,
           price: nft.price,
+          marketPrice: nft.marketPrice,
           assets: nft.assets,
           chain: nft.chain,
           beneficialWallet: nft.beneficialWallet,
@@ -73,6 +88,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
       // Reset form for create mode
       setFormData({
         price: 0,
+        marketPrice: true,
         assets: [],
         chain: "Sepolia",
         beneficialWallet: "",
@@ -95,11 +111,11 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
     if (!newAsset.amount || Number.parseFloat(newAsset.amount) <= 0) {
       newErrors.amount = "Please enter a valid amount"
     }
-    if (!newAsset.walletAddress) {
-      newErrors.walletAddress = "Please enter a wallet address"
-    } else if (!validateWalletAddress(newAsset.walletAddress)) {
-      newErrors.walletAddress = "Please enter a valid Ethereum address (0x...)"
-    }
+    // if (!newAsset.walletAddress) {
+    //   newErrors.walletAddress = "Please enter a wallet address"
+    // } else if (!validateWalletAddress(newAsset.walletAddress)) {
+    //   newErrors.walletAddress = "Please enter a valid Ethereum address (0x...)"
+    // }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -110,7 +126,8 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
       id: `asset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       token: newAsset.token,
       amount: Number.parseFloat(newAsset.amount),
-      walletAddress: newAsset.walletAddress,
+      walletAddress: formData.beneficialWallet, //newAsset.walletAddress,
+      deposited: false,
     }
 
     setFormData((prev) => ({
@@ -122,24 +139,76 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
     setErrors({})
   }
 
-  const handleRemoveAsset = (assetId: string) => {
+  const handleRemoveAsset = (asset: Asset) => {
+    if (asset.deposited) {
+      console.log("Asset already deposited:", asset.id, " to withdraw DeCup NFT must be burn")
+      return
+    }
+
     setFormData((prev) => ({
       ...prev,
-      assets: prev.assets.filter((asset) => asset.id !== assetId),
+      assets: prev.assets.filter((asset) => asset.id !== asset.id),
     }))
   }
 
-  const handleDeposit = (assetId: string) => {
-    console.log("Deposit asset:", assetId)
-    // Implement deposit functionality
+  const handleDeposit = async (asset: Asset) => {
+    if (asset.deposited) {
+      console.log("Asset already deposited:", asset.id, " to remove asset must be deposited")
+      return
+    }
+
+    // Check if wallet is connected
+    if (!isConnected || !address) {
+      alert("Please connect your wallet first to deposit assets.")
+      return
+    }
+
+    let success = false
+    let assetTokenId: string = asset.id
+    const contracts = getContractAddresses[chainId as keyof typeof getContractAddresses]
+
+    // Convert decimal amount to wei (multiply by 10^18 for 18 decimal places)
+    const amountInWei = BigInt(Math.floor(asset.amount * Math.pow(10, 18)))
+
+    try {
+      if (asset.token === "Native") {
+        const result = await depositNative(amountInWei, contracts.DeCup, address)
+        success = result.success
+        if (result.success && result.tokenId) {
+          assetTokenId = result.tokenId.toString()
+        }
+      } else {
+        const result = await depositERC20(amountInWei, (getTokenAddresses[chainId as keyof typeof getTokenAddresses] as any)[asset.token], contracts.DeCup, address)
+        success = result.success
+        if (result.success && result.tokenId) {
+          assetTokenId = result.tokenId.toString()
+        }
+      }
+
+      if (success) {
+        setFormData((prev) => ({
+          ...prev,
+          assets: prev.assets.map((storedAsset) =>
+            storedAsset.id === asset.id ? { ...storedAsset, deposited: !storedAsset.deposited, id: assetTokenId } : storedAsset
+          ),
+        }))
+        console.log("Asset deposited successfully:", assetTokenId)
+      }
+    } catch (error) {
+      console.error("Failed to deposit asset:", error)
+      alert("Failed to deposit asset. Please check your wallet connection and try again.")
+    }
   }
 
   const handleSave = () => {
     const saveErrors: Record<string, string> = {}
 
-    if (!formData.price || formData.price <= 0) {
-      saveErrors.price = "Please enter a valid price"
+    if (!formData.marketPrice) {
+      if (!formData.price || formData.price <= 0) {
+        saveErrors.price = "Please enter a valid price"
+      }
     }
+
     if (!formData.beneficialWallet) {
       saveErrors.beneficialWallet = "Please enter a beneficial wallet address"
     } else if (!validateWalletAddress(formData.beneficialWallet)) {
@@ -163,6 +232,25 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
     onClose()
   }
 
+  useEffect(() => {
+    if (formData.assets.length > 0) {
+      const requestTokenCollateral = async () => {
+        const contracts = getContractAddresses[chainId as keyof typeof getContractAddresses]
+        const asset = formData.assets[0]
+        // Only get price if asset is deposited and has a valid tokenId
+        console.log("asset tokenId", asset.id)
+        if (asset.deposited && asset.id && !isNaN(Number(asset.id))) {
+          const totalCollateral: { price: number } = await getTokenPriceInUsd(BigInt(asset.id), contracts.DeCup)
+          setTotalCollateralInUsd(Number(totalCollateral.price) / 100000000)
+        }
+      }
+      requestTokenCollateral()
+    } else {
+      setTotalCollateralInUsd(0)
+    }
+  }, [isOpen, formData.assets.length, chainId])
+
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -179,31 +267,18 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
           {/* Left Column - NFT Details */}
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Price (ETH)</Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={formData.price || ""}
-                onChange={(e) => setFormData((prev) => ({ ...prev, price: Number.parseFloat(e.target.value) || 0 }))}
-              />
-              {errors.price && <p className="text-sm text-red-500">{errors.price}</p>}
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="beneficialWallet">Beneficial Wallet Address</Label>
               <Input
                 id="beneficialWallet"
-                placeholder="0x..."
-                value={formData.beneficialWallet}
-                onChange={(e) => setFormData((prev) => ({ ...prev, beneficialWallet: e.target.value }))}
+                placeholder={address || "0x..."}
+                value={formData.beneficialWallet || address || ""}
+                onChange={(e) => setFormData((prev) => ({ ...prev, beneficialWallet: e.target.value || address || "" }))}
               />
               {errors.beneficialWallet && <p className="text-sm text-red-500">{errors.beneficialWallet}</p>}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="chain">Chain</Label>
+              <Label htmlFor="chain">Chain to sale NFT</Label>
               <Select
                 value={formData.chain}
                 onValueChange={(value: "Sepolia" | "Fuji") => setFormData((prev) => ({ ...prev, chain: value }))}
@@ -260,7 +335,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
                   {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
                 </div>
 
-                <div className="space-y-2">
+                {/*<div className="space-y-2">
                   <Label htmlFor="assetWallet">Wallet Address</Label>
                   <Input
                     id="assetWallet"
@@ -269,7 +344,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
                     onChange={(e) => setNewAsset((prev) => ({ ...prev, walletAddress: e.target.value }))}
                   />
                   {errors.walletAddress && <p className="text-sm text-red-500">{errors.walletAddress}</p>}
-                </div>
+                </div>*/}
 
                 <Button onClick={handleAddAsset} className="w-full">
                   <Plus className="h-4 w-4 mr-2" />
@@ -284,7 +359,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Assets ({formData.assets.length})</h3>
               <div className="text-sm text-muted-foreground">
-                Total Collateral: ${getTotalCollateral(formData.assets).toLocaleString()}
+                Total Collateral: ${totalCollateralInUsd.toLocaleString()}
               </div>
             </div>
 
@@ -305,18 +380,25 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
                         <div className="flex items-center space-x-2">
                           <Badge variant="secondary">{asset.token}</Badge>
                           <span className="font-semibold">{asset.amount.toLocaleString()}</span>
+                          {asset.deposited && <Badge variant="default" className="bg-green-500">Deposited</Badge>}
                         </div>
-                        <Button size="sm" variant="outline" onClick={() => handleRemoveAsset(asset.id)}>
+                        <Button size="sm" variant="outline" onClick={() => handleRemoveAsset(asset)} disabled={asset.deposited} title="To remove asset DeCup NFT mus be burn">
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                       <div className="space-y-2">
-                        <div className="text-xs text-muted-foreground">
+                        {/*<div className="text-xs text-muted-foreground">
                           Wallet: {asset.walletAddress.slice(0, 6)}...{asset.walletAddress.slice(-4)}
-                        </div>
-                        <Button size="sm" className="w-full" onClick={() => handleDeposit(asset.id)}>
+                        </div>*/}
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => handleDeposit(asset)}
+                          variant={asset.deposited ? "outline" : "default"}
+                          disabled={asset.deposited || !isConnected}
+                        >
                           <Wallet className="h-3 w-3 mr-2" />
-                          Deposit
+                          {!isConnected ? "Connect Wallet" : asset.deposited ? "Deposited" : "Deposit"}
                         </Button>
                       </div>
                     </CardContent>

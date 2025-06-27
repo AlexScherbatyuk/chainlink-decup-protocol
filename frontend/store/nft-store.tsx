@@ -8,12 +8,14 @@ export interface Asset {
   token: string
   amount: number
   walletAddress: string
+  deposited: boolean
 }
 
 export interface DeCupNFT {
   id: string
   tokenId: number
   price: number
+  marketPrice?: boolean
   totalCollateral: number
   assets: Asset[]
   chain: "Sepolia" | "Fuji"
@@ -27,6 +29,7 @@ export interface DeCupNFT {
 export interface NFTFormData {
   tokenId?: number
   price: number
+  marketPrice?: boolean
   assets: Asset[]
   chain: "Sepolia" | "Fuji"
   beneficialWallet: string
@@ -69,6 +72,7 @@ const generateTestAssets = (tokenId: number): Asset[] => {
       token: asset.token,
       amount: asset.baseAmount + (tokenId % 1000),
       walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
+      deposited: false,
     }))
     .slice(0, Math.floor(Math.random() * 3) + 2) // 2-4 assets per NFT
 }
@@ -81,6 +85,7 @@ const createTestNFT = (id: string, tokenId: number, isListed = false): DeCupNFT 
     id,
     tokenId,
     price: Number((Math.random() * 4 + 0.5).toFixed(2)), // 0.5 - 4.5 ETH
+    marketPrice: Math.random() > 0.5, // Random true/false for test data
     totalCollateral,
     assets,
     chain: Math.random() > 0.5 ? "Sepolia" : "Fuji",
@@ -188,6 +193,7 @@ export const useNFTStore = create<NFTStore>()(
             id: `nft-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             tokenId: data.tokenId || state.generateTokenId(),
             price: data.price,
+            marketPrice: data.marketPrice,
             totalCollateral: state.getTotalCollateral(data.assets),
             assets: data.assets,
             chain: data.chain,

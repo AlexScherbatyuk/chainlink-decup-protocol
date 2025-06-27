@@ -31,7 +31,7 @@ if (!projectId) {
         defaultNetwork: sepolia, // Default to Sepolia testnet
         metadata,
         features: { analytics: true }, // Optional features
-        themeMode: 'dark', // or 'light'
+        themeMode: 'light', // or 'light'
         themeVariables: {
             '--w3m-accent': '#000000', // Primary button color
         }

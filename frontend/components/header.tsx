@@ -103,8 +103,9 @@ export default function Header({ activeTab = "on-sale", onTabChange }: HeaderPro
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <appkit-button />
+          <div className="text-black">
+            <appkit-button />
+          </div>
         </div>
       </div>
     </header>
