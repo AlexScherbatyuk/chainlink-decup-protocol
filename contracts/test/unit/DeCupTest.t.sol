@@ -523,7 +523,7 @@ contract DeCupTest is Test {
         uint256 depositUsdcAmount = 50e6;
         // ACT
         uint256 tcl = (deCup.getTokenPriceInUsd(0) * 1e18) / 1e8; //50000 0000 0000
-        uint256 usdcValue = deCup.getUsdcUSDValue(address(s_mockTokenUsdc), depositUsdcAmount);
+        uint256 usdcValue = deCup.getERC20UsdValue(address(s_mockTokenUsdc), depositUsdcAmount);
 
         // Assert
         assertEq(tcl, usdcValue); //50000 | 000 000 000 000 000 000

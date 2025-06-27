@@ -624,7 +624,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Handles token decimals dynamically using IERC20Metadata interface
      * @dev Returns value in USD with 18 decimals of precision
      */
-    function getUsdcUSDValue(address tokenAddress, uint256 amount) public view returns (uint256) {
+    function getERC20UsdValue(address tokenAddress, uint256 amount) public view returns (uint256) {
         uint256 usdcPrice = getUsdPrice(tokenAddress);
         uint8 decimals = IERC20Metadata(tokenAddress).decimals();
         return (usdcPrice * 10 ** 10) * amount / 10 ** uint256(decimals);
@@ -661,7 +661,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             if (assets[i] == address(0)) {
                 tcl += getEthUSDValue(assets[i], s_collateralDeposited[tokenId][assets[i]]);
             } else {
-                tcl += getUsdcUSDValue(assets[i], s_collateralDeposited[tokenId][assets[i]]);
+                tcl += getERC20UsdValue(assets[i], s_collateralDeposited[tokenId][assets[i]]);
             }
         }
         return tcl;
@@ -728,7 +728,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             } else {
                 // ERC20 token
                 symbol = IERC20Metadata(assets[i]).symbol();
-                usdValue = getUsdcUSDValue(assets[i], amount);
+                usdValue = getERC20UsdValue(assets[i], amount);
             }
 
             tcl += usdValue;
