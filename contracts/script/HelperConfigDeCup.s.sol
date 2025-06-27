@@ -17,13 +17,15 @@ contract HelperConfigDeCup is Script {
 
     uint8 public constant DECIMALS = 8;
     int256 public constant ETH_USD_PRICE = 2000e8;
-    int256 public constant BTC_USD_PRICE = 1000e8;
+    int256 public constant USDC_USD_PRICE = 1000e8;
 
     NetworkConfig public activeNetworkConfig;
 
     constructor() {
         if (block.chainid == 11155111) {
             activeNetworkConfig = getSepoliaEthConfig();
+        } else if (block.chainid == 43113) {
+            activeNetworkConfig = getFujiAvlConfig();
         } else {
             activeNetworkConfig = getOrCreateAnvilEthConfig();
         }
@@ -38,15 +40,13 @@ contract HelperConfigDeCup is Script {
     function getSepoliaEthConfig() public view returns (NetworkConfig memory) {
         string memory imageURI = svgToImageURI(vm.readFile("./img/ethereum-mug.svg"));
 
-        address[] memory priceFeedAddresses = new address[](3);
+        address[] memory priceFeedAddresses = new address[](2);
         priceFeedAddresses[0] = 0x694AA1769357215DE4FAC081bf1f309aDC325306; // ETH / USD
-        priceFeedAddresses[1] = 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43; // BTC / USD
-        priceFeedAddresses[2] = 0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E; // USDC / USD
+        priceFeedAddresses[1] = 0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E; // USDC / USD
 
-        address[] memory tokenAddresses = new address[](3);
+        address[] memory tokenAddresses = new address[](2);
         tokenAddresses[0] = 0xdd13E55209Fd76AfE204dBda4007C227904f0a81; // WETH
-        tokenAddresses[1] = 0x29f2D40B0605204364af54EC677bD022dA425d03; // WBTC
-        tokenAddresses[2] = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC
+        tokenAddresses[1] = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC
 
         return NetworkConfig({
             imageURI: imageURI,
@@ -59,15 +59,13 @@ contract HelperConfigDeCup is Script {
     function getFujiAvlConfig() public view returns (NetworkConfig memory) {
         string memory imageURI = svgToImageURI(vm.readFile("./img/avalanche-mug.svg"));
 
-        address[] memory priceFeedAddresses = new address[](3);
+        address[] memory priceFeedAddresses = new address[](2);
         priceFeedAddresses[0] = 0x5498BB86BC934c8D34FDA08E81D444153d0D06aD; // AVAX / USD
-        priceFeedAddresses[1] = 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43; // BTC / USD
-        priceFeedAddresses[2] = 0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E; // USDC / USD
+        priceFeedAddresses[1] = 0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E; // USDC / USD
 
-        address[] memory tokenAddresses = new address[](3);
+        address[] memory tokenAddresses = new address[](2);
         tokenAddresses[0] = 0xd00ae08403B9bbb9124bB305C09058E32C39A48c; // WAVAX
-        tokenAddresses[1] = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063; // WBTC
-        tokenAddresses[2] = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // USDC
+        tokenAddresses[1] = 0x5425890298aed601595a70AB815c96711a31Bc65; // USDC
 
         return NetworkConfig({
             imageURI: imageURI,
@@ -86,22 +84,17 @@ contract HelperConfigDeCup is Script {
         MockV3Aggregator ethUsdPriceFeed = new MockV3Aggregator(DECIMALS, ETH_USD_PRICE);
         MockToken wethMock = new MockToken("WETH", "WETH", msg.sender, 1000e18, 18);
 
-        MockV3Aggregator btcUsdPriceFeed = new MockV3Aggregator(DECIMALS, BTC_USD_PRICE);
-        MockToken wbtcMock = new MockToken("WBTC", "WBTC", msg.sender, 1000e8, 8);
-
-        MockV3Aggregator usdcUsdPriceFeed = new MockV3Aggregator(DECIMALS, BTC_USD_PRICE);
+        MockV3Aggregator usdcUsdPriceFeed = new MockV3Aggregator(DECIMALS, USDC_USD_PRICE);
         MockToken usdcMock = new MockToken("USDC", "USDC", msg.sender, 1000e6, 6);
         vm.stopBroadcast();
 
         address[] memory priceFeedAddresses = new address[](3);
         priceFeedAddresses[0] = address(ethUsdPriceFeed);
-        priceFeedAddresses[1] = address(btcUsdPriceFeed);
-        priceFeedAddresses[2] = address(usdcUsdPriceFeed);
+        priceFeedAddresses[1] = address(usdcUsdPriceFeed);
 
         address[] memory tokenAddresses = new address[](3);
         tokenAddresses[0] = address(wethMock);
-        tokenAddresses[1] = address(wbtcMock);
-        tokenAddresses[2] = address(usdcMock);
+        tokenAddresses[1] = address(usdcMock);
 
         return NetworkConfig({
             imageURI: imageURI,
