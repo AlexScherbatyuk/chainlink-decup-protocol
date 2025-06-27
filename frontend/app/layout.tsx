@@ -1,5 +1,11 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google' // Or your preferred font
 import './globals.css'
+
+import { headers } from 'next/headers' // Import headers function
+import ContextProvider from '@/context' // Adjust import path if needed
+
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -7,14 +13,18 @@ export const metadata: Metadata = {
   generator: 'v0.dev',
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+// ATTENTION!!! RootLayout must be an async function to use headers() 
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Retrieve cookies from request headers on the server
+  const headersObj = await headers() // IMPORTANT: await the headers() call
+  const cookies = headersObj.get('cookie')
+
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={inter.className}>
+        {/* Wrap children with ContextProvider, passing cookies */}
+        <ContextProvider cookies={cookies}>{children}</ContextProvider>
+      </body>
     </html>
   )
 }

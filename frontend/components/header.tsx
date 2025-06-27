@@ -62,10 +62,7 @@ export default function Header({ activeTab = "on-sale", onTabChange }: HeaderPro
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button className="flex items-center space-x-2">
-            <Wallet className="h-4 w-4" />
-            <span>Connect Wallet</span>
-          </Button>
+          <appkit-button />
         </div>
       </div>
     </header>
