@@ -1,18 +1,48 @@
 import { cookieStorage, createStorage } from 'wagmi' // Use 'wagmi' directly (Wagmi v2+)
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { mainnet, arbitrum } from '@reown/appkit/networks'
+import { sepolia, defineChain } from '@reown/appkit/networks'
 import type { Chain } from 'viem' // Import Chain type for explicit typing
 
 // Read Project ID from environment variables
 export const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID
+
+// Re-export sepolia for use in other components
+export { sepolia }
 
 // Ensure Project ID is defined at build time
 if (!projectId) {
     throw new Error('NEXT_PUBLIC_REOWN_PROJECT_ID is not defined. Please set it in .env.local')
 }
 
+// Define Avalanche Fuji testnet
+export const avalancheFuji = defineChain({
+    id: 43113, // Avalanche Fuji chain ID
+    caipNetworkId: 'eip155:43113',
+    chainNamespace: 'eip155',
+    name: 'Avalanche Fuji',
+    nativeCurrency: { name: 'Avalanche', symbol: 'AVAX', decimals: 18 },
+    rpcUrls: {
+        default: {
+            http: ['https://api.avax-test.network/ext/bc/C/rpc'],
+        },
+    },
+    blockExplorers: {
+        default: {
+            name: 'SnowTrace',
+            url: 'https://testnet.snowtrace.io',
+        },
+    },
+    contracts: {
+        multicall3: {
+            address: '0xca11bde05977b3631167028862be2a173976ca11',
+            blockCreated: 7096959,
+        },
+    },
+    testnet: true
+})
+
 // Define supported networks, explicitly typed as a non-empty array of Chains
-export const networks: [Chain, ...Chain[]] = [mainnet, arbitrum] // Add other desired networks
+export const networks: [Chain, ...Chain[]] = [sepolia, avalancheFuji] // Use Sepolia and Fuji testnets
 
 // Create the Wagmi adapter instance
 export const wagmiAdapter = new WagmiAdapter({

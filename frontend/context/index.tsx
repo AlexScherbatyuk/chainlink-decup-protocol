@@ -5,15 +5,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider, cookieToInitialState, type Config } from 'wagmi'
 import { createAppKit } from '@reown/appkit/react'
 // Import config, networks, projectId, and wagmiAdapter from your config file
-import { config, networks, projectId, wagmiAdapter } from '@/config'
-// Import the default network separately if needed
-import { mainnet } from '@reown/appkit/networks'
+import { config, networks, projectId, wagmiAdapter, sepolia, avalancheFuji } from '@/config'
 
 const queryClient = new QueryClient()
 
 const metadata = {
-    name: 'Your App Name',
-    description: 'Your App Description',
+    name: 'Chromion DeCup',
+    description: 'Decentralized Cup Trading Platform',
     url: typeof window !== 'undefined' ? window.location.origin : 'YOUR_APP_URL', // Replace YOUR_APP_URL
     icons: ['YOUR_ICON_URL'], // Replace YOUR_ICON_URL
 }
@@ -30,10 +28,10 @@ if (!projectId) {
         projectId: projectId!,
         // Pass networks directly (type is now correctly inferred from config)
         networks: networks,
-        defaultNetwork: mainnet, // Or your preferred default
+        defaultNetwork: sepolia, // Default to Sepolia testnet
         metadata,
         features: { analytics: true }, // Optional features
-        themeMode: 'dark', // or 'dark'
+        themeMode: 'dark', // or 'light'
         themeVariables: {
             '--w3m-accent': '#000000', // Primary button color
         }
