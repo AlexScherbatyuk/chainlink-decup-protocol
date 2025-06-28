@@ -17,6 +17,8 @@ deploy-sepolia:; forge script script/DeployDeCupManager.s.sol:DeployDeCupManager
 
 deposit-eth-sepolia:; forge script script/Interactions.s.sol:DepositNativeCurrencyAndMintNft --rpc-url $(SEPOLIA_RPC_URL) --broadcast --account devKey -vvvv
 
+create-sale-sepolia:; forge script script/Interactions.s.sol:CreateSale --sig "run(uint256)" $(TOKEN_ID) --rpc-url $(SEPOLIA_RPC_URL) --broadcast --account devKey -vvvv
+
 add-single-asset-cup-sepolia:; forge script script/Interactions.s.sol:AddSingleAssetCollateralToExistingCup --sig "run(uint256)" $(TOKEN_ID) --rpc-url $(SEPOLIA_RPC_URL) --broadcast --account devKey -vvvv
 
 get-nft-collateral-sepolia:; forge script script/Interactions.s.sol:GetNftCollateral --sig "run(uint256,address)" $(TOKEN_ID) $(TOKEN_ADDRESS) --rpc-url $(SEPOLIA_RPC_URL) --broadcast --account devKey -vvvv

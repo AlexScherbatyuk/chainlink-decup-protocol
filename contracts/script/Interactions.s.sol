@@ -3,9 +3,11 @@
 pragma solidity 0.8.29;
 
 import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
 import {DeCup} from "src/DeCup.sol";
 import {HelperConfigDeCup} from "./HelperConfigDeCup.s.sol";
 import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
+import {DeCupManager} from "src/DeCupManager.sol";
 
 contract DepositMultipleAssetsAndMintNft is Script {
     function run() external returns (address) {
@@ -196,5 +198,36 @@ contract RemoveFromSale is Script {
         vm.startBroadcast();
         DeCup(payable(deCupAddress)).removeFromSale(tokenId);
         vm.stopBroadcast();
+    }
+}
+
+contract CreateSale is Script {
+    function run(uint256 tokenId) external returns (address) {
+        address mostRecentlDeployedDCManager = DevOpsTools.get_most_recent_deployment("DeCupManager", block.chainid);
+        address mostRecentlDeployedDeCup = DevOpsTools.get_most_recent_deployment("DeCup", block.chainid);
+
+        depositNativeCurrencyAndMintNft(mostRecentlDeployedDeCup);
+
+        createSale(mostRecentlDeployedDCManager, tokenId);
+
+        return mostRecentlDeployedDCManager;
+    }
+
+    function createSale(address deCupAddress, uint256 tokenId) public {
+        vm.startBroadcast();
+        console.log("msg.sender:", msg.sender);
+        DeCupManager(payable(deCupAddress)).createSale(tokenId, msg.sender);
+        vm.stopBroadcast();
+    }
+
+    function depositNativeCurrencyAndMintNft(address deCupAddress) public returns (DeCup) {
+        vm.startBroadcast();
+        console.log("msg.sender:", msg.sender);
+        (bool success,) = deCupAddress.call{value: 1 ether}("");
+        if (!success) {
+            revert DeCup.DeCup__TransferFailed();
+        }
+        vm.stopBroadcast();
+        return DeCup(payable(deCupAddress));
     }
 }

@@ -21,35 +21,21 @@ import {CCIPReceiver} from "@chainlink/contracts/src/v0.8/ccip/applications/CCIP
  */
 contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     // Interfaces
-    /// @dev Reference to the DeCup NFT contract
     IDeCup private s_nft;
-    /// @dev Reference to the LINK token interface for CCIP fees
     LinkTokenInterface internal immutable i_linkToken;
 
     // Errors
-    /// @dev Thrown when attempting to buy a token that is not listed for sale
     error DeCupManager__TokenNotListedForSale();
-    /// @dev Thrown when attempting to list a token that is already listed for sale
     error DeCupManager__TokenListedForSale();
-    /// @dev Thrown when the caller is not the owner of the token or sale
     error DeCupManager__NotOwner();
-    /// @dev Thrown when insufficient ETH is provided for the transaction
     error DeCupManager__InsufficientETH();
-    /// @dev Thrown when the sale ID does not exist
     error DeCupManager__SaleNotFound();
-    /// @dev Thrown when the user has insufficient funds in their collateral balance
     error DeCupManager__InsufficientFunds();
-    /// @dev Thrown when a transfer operation fails
     error DeCupManager__TransferFailed();
-    /// @dev Thrown when an amount of zero is provided where a positive amount is required
     error DeCupManager__MoreThanZero();
-    /// @dev Thrown when the caller is not the owner of the specified token
     error DeCupManager__NotTokenOwner();
-    /// @dev Thrown when the caller is not the authorized CCIP router
     error DeCupManager__NotRouter();
-    /// @dev Thrown when an invalid cross-chain action is received
     error DeCupManager__InvalidAction();
-    /// @dev Thrown when an invalid router address is provided for a chain
     error DeCupManager__InvalidRouter(address, uint256);
 
     /**
@@ -88,6 +74,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         address beneficiaryAddress;
         uint256 chainId;
         uint256 priceInUsd;
+        address[] tokenAddresses;
     }
 
     /**
@@ -109,38 +96,23 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     }
 
     // State variables
-    /// @dev The collateral amount required for CCIP operations in USD (with 8 decimals)
     uint256 private s_ccipCollateralInUsd;
-    /// @dev Address of the Chainlink price feed for ETH/USD conversion
     address private s_priceFeedAddress;
-    /// @dev Counter for generating unique sale IDs
     uint256 private s_saleCounter;
-    /// @dev The payment method for CCIP fees (Native or LINK)
     PayFeesIn private s_payFeesIn = PayFeesIn.Native;
-    /// @dev The chain selector for the current chain
     uint64 private immutable i_currentChainSelector;
 
-    /// @dev Mapping of user addresses to their collateral balances
     mapping(address user => uint256 collateral) private s_userToCollateral;
-    /// @dev Mapping of chain ID to sale ID to sale order details
     mapping(uint256 chainId => mapping(uint256 saleId => Order saleOrder)) private s_chainIdToSaleIdToSaleOrder;
-    /// @dev Mapping of chain ID to CCIP chain selector
     mapping(uint256 chainId => uint64 chainSelector) private s_chainIdToChainSelector;
-    /// @dev Mapping of chain ID to LINK token address
     mapping(uint256 chainId => address linkAddress) private s_chainIdToLinkAddress;
-    /// @dev Mapping of chain ID to receiver contract address
     mapping(uint256 chainId => address receiverAddress) private s_chainIdToReceiverAddress;
-    /// @dev Mapping of chain ID to CCIP router address
     mapping(uint256 chainId => address routerAddress) private s_chainIdToRouterAddress;
 
     // Events
-    /// @dev Emitted when a user deposits collateral
     event Deposit(address indexed user, uint256 amount);
-    /// @dev Emitted when a user withdraws collateral
     event Withdraw(address indexed user, uint256 amount);
-    /// @dev Emitted when a sale is cancelled
     event CancelSale(uint256 indexed saleId);
-    /// @dev Emitted when a new sale is created
     event CreateSale(
         uint256 indexed saleId,
         uint256 indexed tokenId,
@@ -149,15 +121,11 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         uint256 destinationChainId,
         uint256 priceInUsd
     );
-    /// @dev Emitted when a local purchase is completed
     event Buy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
-    /// @dev Emitted when a cross-chain purchase is completed
     event BuyCrossSale(
         uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied, address indexed sellerAddress
     );
-    /// @dev Emitted when a cross-chain message is received
     event CrossChainReceived(bytes32 messageId, uint64 sourceChainSelector, uint64 destinationChainSelector);
-    /// @dev Emitted when cross-chain data is received and decoded
     event CrossChainDataReceived(
         CrossChainAction action,
         uint256 saleId,
@@ -169,9 +137,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         bool isBurn,
         uint256 priceInUsd
     );
-    /// @dev Emitted when a cross-chain message is sent
     event CrossChainSent(bytes32 messageId, uint64 sourceChainSelector, uint64 destinationChainSelector);
-    /// @dev Emitted when cross-chain data is sent
     event CrossChainDataSent(
         CrossChainAction action,
         uint256 saleId,
@@ -330,6 +296,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         // Effects
         _addCollateral(msg.sender, msg.value);
         s_nft.listForSale(tokenId);
+        address[] memory tokenAddresses = s_nft.getTokenAssetsList(tokenId);
         // Interactions
         //Call ccip message to execute internalfunction _createSale on destination chain
 
@@ -341,7 +308,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 sellerAddress: msg.sender,
                 beneficiaryAddress: beneficiaryAddress,
                 chainId: block.chainid,
-                priceInUsd: priceInUsd
+                priceInUsd: priceInUsd,
+                tokenAddresses: tokenAddresses
             }),
             buyerAddress: address(0),
             isBurn: false,
@@ -522,7 +490,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 messageData.order.sellerAddress,
                 messageData.order.beneficiaryAddress,
                 messageData.order.chainId,
-                messageData.order.priceInUsd
+                messageData.order.priceInUsd,
+                messageData.order.tokenAddresses
             );
         } else if (messageData.action == CrossChainAction.CancelSale) {
             _cancelSale(messageData.saleId, messageData.order.sellerAddress, messageData.order.chainId);
@@ -664,7 +633,14 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         }
         // Effects
         //address sellerAddress = beneficiaryAddress == address(0) ? s_nft.ownerOf(tokenId) : beneficiaryAddress;
-        _createSale(tokenId, msg.sender, beneficiaryAddress, block.chainid, s_nft.getTokenPriceInUsd(tokenId));
+        _createSale(
+            tokenId,
+            msg.sender,
+            beneficiaryAddress,
+            block.chainid,
+            s_nft.getTokenPriceInUsd(tokenId),
+            s_nft.getTokenAssetsList(tokenId)
+        );
 
         // Interactions
         s_nft.listForSale(tokenId);
@@ -752,7 +728,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         address sellerAddress,
         address beneficiaryAddress,
         uint256 chainId,
-        uint256 priceInUsd
+        uint256 priceInUsd,
+        address[] memory tokenAddresses
     ) internal {
         uint256 saleId = s_saleCounter;
         Order memory saleOrder = Order({
@@ -760,7 +737,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
             sellerAddress: sellerAddress,
             beneficiaryAddress: beneficiaryAddress,
             chainId: chainId,
-            priceInUsd: priceInUsd
+            priceInUsd: priceInUsd,
+            tokenAddresses: tokenAddresses
         });
         s_chainIdToSaleIdToSaleOrder[chainId][saleId] = saleOrder;
         s_saleCounter++;
