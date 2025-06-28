@@ -47,7 +47,7 @@ const AVAILABLE_CHAINS_BY_ID = [
 ]
 
 export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps) {
-  const { getNFTById, createNFT, updateNFT, getTotalCollateral } = useNFTStore()
+  const { getNFTById, createNFT, updateNFT, generateTokenId } = useNFTStore()
   const chainId = useChainId()
   const { address, isConnected } = useAccount()
 
@@ -55,8 +55,10 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
   const [totalCollateralInUsd, setTotalCollateralInUsd] = useState<number>(0)
 
   const [formData, setFormData] = useState<NFTFormData>({
+    tokenId: generateTokenId(),
     price: 0,
     marketPrice: true,
+    totalCollateral: 0,
     assets: [],
     chain: "Sepolia",
     beneficialWallet: "",
@@ -79,6 +81,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
           tokenId: nft.tokenId,
           price: nft.price,
           marketPrice: nft.marketPrice,
+          totalCollateral: nft.totalCollateral,
           assets: nft.assets,
           chain: nft.chain,
           beneficialWallet: nft.beneficialWallet,
@@ -87,8 +90,10 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
     } else {
       // Reset form for create mode
       setFormData({
+        tokenId: generateTokenId(),
         price: 0,
         marketPrice: true,
+        totalCollateral: 0,
         assets: [],
         chain: "Sepolia",
         beneficialWallet: "",

@@ -3,4 +3,9 @@ const getChainNameById = {
     43113: "AvalancheFuji"
 } as const
 
-export { getChainNameById }
+const getChainIdByName = {
+    "Sepolia": 11155111,
+    "AvalancheFuji": 43113
+} as const
+
+export { getChainNameById, getChainIdByName }

@@ -30,9 +30,11 @@ export interface NFTFormData {
   tokenId?: number
   price: number
   marketPrice?: boolean
+  totalCollateral: number
   assets: Asset[]
   chain: "Sepolia" | "AvalancheFuji"
   beneficialWallet: string
+  isListedForSale?: boolean
 }
 
 interface NFTStore {
@@ -54,7 +56,7 @@ interface NFTStore {
   getTotalCollateral: (assets: Asset[]) => number
   generateTokenId: () => number
   initializeTestData: () => void
-  clearAllData: () => void
+  clearAllNftData: () => void
 
   // New functions
   checkIfNFTExists: (id: string) => boolean
@@ -230,11 +232,11 @@ export const useNFTStore = create<NFTStore>()(
             tokenId: tokenId,
             price: data.price,
             marketPrice: data.marketPrice,
-            totalCollateral: state.getTotalCollateral(data.assets),
+            totalCollateral: data.totalCollateral || state.getTotalCollateral(data.assets),
             assets: data.assets,
             chain: data.chain,
             icon: `/placeholder.svg?height=40&width=40&query=DeCup NFT ${tokenId}`,
-            isListedForSale: false,
+            isListedForSale: data.isListedForSale || false,
             beneficialWallet: data.beneficialWallet,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -403,7 +405,7 @@ export const useNFTStore = create<NFTStore>()(
         generateTokenId: () => {
           const state = get()
           const allNfts = [...state.onSaleNfts, ...state.myListNfts, ...state.draftNfts]
-          const maxTokenId = Math.max(...allNfts.map((nft) => nft.tokenId), 0)
+          const maxTokenId = Math.max(...allNfts.map((nft) => nft.tokenId), -1)
           return maxTokenId + 1
         },
 
@@ -413,7 +415,7 @@ export const useNFTStore = create<NFTStore>()(
           console.log("🚀 Test data loaded into DeCup NFT store")
         },
 
-        clearAllData: () => {
+        clearAllNftData: () => {
           set({
             onSaleNfts: [],
             myListNfts: [],
@@ -447,7 +449,7 @@ if (typeof window !== "undefined") {
   // Add debug helpers to window for development
   ; (window as any).decupStore = {
     loadTestData: () => useNFTStore.getState().initializeTestData(),
-    clearData: () => useNFTStore.getState().clearAllData(),
+    clearData: () => useNFTStore.getState().clearAllNftData(),
     clearStorage: () => {
       localStorage.removeItem("decup-nft-store")
       localStorage.removeItem("decup-debug-mode")

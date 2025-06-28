@@ -211,30 +211,135 @@ const burnDeCupNFT = async (tokenId: bigint, contractAddress: string): Promise<b
     return success
 }
 
-const createSale = async (tokenId: bigint, beneficialWallet: string, contractAddress: string): Promise<boolean> => {
+/**
+ * @notice Creates a sale for a DeCup NFT
+ * @param tokenId The ID of the token to sell
+ * @param beneficialWallet The address of the wallet to receive the funds
+ * @param contractAddress The address of the DeCupManager contract
+ * @param sourceChainId The ID of the source chain
+ * @param destinationChainId The ID of the destination chain
+ * @returns { success: boolean, saleId?: bigint }
+ */
+const createSale = async (tokenId: bigint, beneficialWallet: string, contractAddress: string, sourceChainId: number, destinationChainId: number): Promise<{ success: boolean; saleId?: bigint }> => {
 
     let success = false
+    let saleId: bigint | undefined
 
     try {
         const tx = await writeContract(config, {
             address: contractAddress as `0x${string}`,
-            abi: DeCupABI.abi,
+            abi: DeCupManagerABI.abi,
             functionName: 'createSale',
             args: [tokenId, beneficialWallet],
         })
 
         if (tx) {
-            success = true
+            const receipt = await waitForTransactionReceipt(config, {
+                hash: tx,
+            })
+
+            // Parse logs for Transfer event
+            const logs = parseEventLogs({
+                abi: DeCupManagerABI.abi,
+                logs: receipt.logs,
+            });
+
+            // Parse events to find the NFT Transfer event (mint)
+            const transferEvent = logs.find(
+                (log: any) =>
+                    log.eventName === 'CreateSale' &&
+                    log.args?.tokenId === tokenId &&
+                    log.args?.sourceChainId == sourceChainId &&
+                    log.args?.destinationChainId == destinationChainId &&
+                    log.args?.sellerAddress === '0x0000000000000000000000000000000000000000' &&
+                    log.args?.beneficialWallet?.toLowerCase() === beneficialWallet?.toLowerCase()
+            );
+
+            if ((transferEvent as any)?.args?.saleId !== undefined) {
+                const saleId = (transferEvent as any).args.saleId as bigint;
+                console.log('Minted tokenId:', saleId.toString());
+                return {
+                    success: true,
+                    saleId,
+                    // transactionHash: txHash,
+                };
+            } else {
+                console.warn('Transfer event found, but tokenId not parsed.');
+                return {
+                    success: true, // Transaction succeeded, but no tokenId
+                    //transactionHash: txHash,
+                };
+            }
         }
     } catch (error) {
         console.error("Error create DeCup NFT Manager sale for a token:", error)
         throw error
     }
 
-    return success
+    return { success, saleId }
 }
 
-const cancelSale = async (saleId: bigint, contractAddress: string): Promise<boolean> => {
+/**
+ * @notice Cancels a sale for a DeCup NFT
+ * @param saleId The ID of the sale to cancel
+ * @param contractAddress The address of the DeCupManager contract
+ * @returns { success: boolean, saleId?: bigint }
+ */
+const cancelSale = async (saleId: bigint, contractAddress: string): Promise<{ success: boolean; saleId?: bigint }> => {
+
+    let success = false
+
+    try {
+        const tx = await writeContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupManagerABI.abi,
+            functionName: 'cancelSale',
+            args: [saleId],
+        })
+
+        if (tx) {
+            const receipt = await waitForTransactionReceipt(config, {
+                hash: tx,
+            })
+
+            // Parse logs for Transfer event
+            const logs = parseEventLogs({
+                abi: DeCupManagerABI.abi,
+                logs: receipt.logs,
+            });
+
+            // Parse events to find the NFT Transfer event (mint)
+            const transferEvent = logs.find(
+                (log: any) =>
+                    log.eventName === 'CancelSale' &&
+                    log.args?.saleId === saleId
+            );
+
+            if ((transferEvent as any)?.args?.saleId !== undefined) {
+                const saleId = (transferEvent as any).args.saleId as bigint;
+                console.log('Canceled saleId:', saleId.toString());
+                return {
+                    success: true,
+                    saleId,
+                    // transactionHash: txHash,
+                };
+            } else {
+                console.warn('Transfer event found, but tokenId not parsed.');
+                return {
+                    success: true, // Transaction succeeded, but no tokenId
+                    //transactionHash: txHash,
+                };
+            }
+        }
+    } catch (error) {
+        console.error("Error removing DeCup NFT sale:", error)
+        throw error
+    }
+
+    return { success, saleId }
+}
+
+const burn = async (tokenId: bigint, contractAddress: string, walletAddress: string): Promise<{ success: boolean; tokenId?: bigint }> => {
 
     let success = false
 
@@ -242,19 +347,52 @@ const cancelSale = async (saleId: bigint, contractAddress: string): Promise<bool
         const tx = await writeContract(config, {
             address: contractAddress as `0x${string}`,
             abi: DeCupABI.abi,
-            functionName: 'cancelSale',
-            args: [saleId],
+            functionName: 'burn',
+            args: [tokenId],
         })
 
         if (tx) {
-            success = true
+            const receipt = await waitForTransactionReceipt(config, {
+                hash: tx,
+            })
+
+            // Parse logs for Transfer event
+            const logs = parseEventLogs({
+                abi: DeCupABI.abi,
+                logs: receipt.logs,
+            });
+
+            // Parse events to find the NFT Transfer event (mint)
+            const transferEvent = logs.find(
+                (log: any) =>
+                    log.eventName === 'Transfer' &&
+                    log.args?.tokenId === tokenId &&
+                    log.args?.from?.toLowerCase() === walletAddress?.toLowerCase() &&
+                    log.args?.to === '0x0000000000000000000000000000000000000000'
+            );
+
+            if ((transferEvent as any)?.args?.saleId !== undefined) {
+                const saleId = (transferEvent as any).args.saleId as bigint;
+                console.log('Burn tokenId:', saleId.toString());
+                return {
+                    success: true,
+                    tokenId,
+                    // transactionHash: txHash,
+                };
+            } else {
+                console.warn('Transfer event found, but tokenId not parsed.');
+                return {
+                    success: true, // Transaction succeeded, but no tokenId
+                    //transactionHash: txHash,
+                };
+            }
         }
     } catch (error) {
         console.error("Error removing DeCup NFT sale:", error)
         throw error
     }
 
-    return success
+    return { success, tokenId }
 }
 
 /**
@@ -302,37 +440,60 @@ const getMyDeCupNfts = async (contractAddress: string, walletAddress: string): P
             throw new Error('Public client not available');
         }
 
-        // Query Transfer events where 'to' is the wallet address (minted to this wallet)
-        const logs = await publicClient.getLogs({
-            address: contractAddress as `0x${string}`,
-            event: {
-                type: 'event',
-                name: 'Transfer',
-                inputs: [
-                    { name: 'from', type: 'address', indexed: true },
-                    { name: 'to', type: 'address', indexed: true },
-                    { name: 'tokenId', type: 'uint256', indexed: true }
-                ]
-            },
-            args: {
-                to: walletAddress as `0x${string}`
-            },
-            fromBlock: BigInt(await publicClient.getBlockNumber()) - BigInt(50000),
-            toBlock: 'latest'
-        });
-
-        // Parse the logs to extract tokenIds
+        const currentBlock = await publicClient.getBlockNumber();
         const allTokenIds: bigint[] = [];
-        const parsedLogs = parseEventLogs({
-            abi: DeCupABI.abi,
-            logs: logs,
-        });
 
-        // Extract tokenIds from Transfer events
-        for (const log of parsedLogs) {
-            if ((log as any).eventName === 'Transfer' && (log as any).args?.tokenId !== undefined) {
-                const tokenId = (log as any).args.tokenId as bigint;
-                allTokenIds.push(tokenId);
+        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
+        const BLOCK_CHUNK_SIZE = 10000;
+        const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
+
+        const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
+        const endBlock = currentBlock;
+
+        // Query logs in chunks to avoid "exceed maximum block range" error
+        for (let fromBlock = startBlock; fromBlock < endBlock; fromBlock += BigInt(BLOCK_CHUNK_SIZE)) {
+            const toBlock = fromBlock + BigInt(BLOCK_CHUNK_SIZE) - BigInt(1);
+            const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
+
+            try {
+                console.log(`Fetching Transfer events from block ${fromBlock} to ${actualToBlock}`);
+
+                const logs = await publicClient.getLogs({
+                    address: contractAddress as `0x${string}`,
+                    event: {
+                        type: 'event',
+                        name: 'Transfer',
+                        inputs: DeCupABI.abi.find((item: any) => item.type === 'event' && item.name === 'Transfer')?.inputs || []
+                    },
+                    args: {
+                        to: walletAddress as `0x${string}`
+                    },
+                    fromBlock: fromBlock,
+                    toBlock: actualToBlock
+                });
+
+                // Parse the logs to extract tokenIds
+                const parsedLogs = parseEventLogs({
+                    abi: DeCupABI.abi,
+                    logs: logs,
+                });
+
+                // Extract tokenIds from Transfer events
+                for (const log of parsedLogs) {
+                    if ((log as any).eventName === 'Transfer' && (log as any).args?.tokenId !== undefined) {
+                        const tokenId = (log as any).args.tokenId as bigint;
+                        if (!allTokenIds.includes(tokenId)) {
+                            allTokenIds.push(tokenId);
+                        }
+                    }
+                }
+
+                // Small delay between requests to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+            } catch (chunkError) {
+                console.warn(`Error fetching logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                // Continue with next chunk even if one fails
             }
         }
 
@@ -401,6 +562,332 @@ const getTokenAssetsList = async (tokenId: bigint, contractAddress: string): Pro
 
     return { success, tokenAddresses }
 }
+
+/**
+ * @notice Gets the list of sale orders
+ * @param contractAddress The address of the DeCupManager contract
+ * @returns { success: boolean, saleOrders: any[] }
+ */
+const getSaleOrderList = async (contractAddress: string): Promise<{ success: boolean; saleOrders: any[] }> => {
+    try {
+        const publicClient = getPublicClient(config);
+
+        if (!publicClient) {
+            throw new Error('Public client not available');
+        }
+
+        const currentBlock = await publicClient.getBlockNumber();
+        const saleOrders: any[] = [];
+
+        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
+        const BLOCK_CHUNK_SIZE = 10000;
+        const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
+
+        const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
+        const endBlock = currentBlock;
+
+        // Query logs in chunks to avoid "exceed maximum block range" error
+        for (let fromBlock = startBlock; fromBlock < endBlock; fromBlock += BigInt(BLOCK_CHUNK_SIZE)) {
+            const toBlock = fromBlock + BigInt(BLOCK_CHUNK_SIZE) - BigInt(1);
+            const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
+
+            try {
+                console.log(`Fetching CreateSale events from block ${fromBlock} to ${actualToBlock}`);
+
+                // Query CreateSale events
+                const logs = await publicClient.getLogs({
+                    address: contractAddress as `0x${string}`,
+                    event: {
+                        type: 'event',
+                        name: 'CreateSale',
+                        inputs: DeCupManagerABI.abi.find((item: any) => item.type === 'event' && item.name === 'CreateSale')?.inputs || []
+                    },
+                    fromBlock: fromBlock,
+                    toBlock: actualToBlock
+                });
+
+                // Parse the logs to extract sale orders
+                const parsedLogs = parseEventLogs({
+                    abi: DeCupManagerABI.abi,
+                    logs: logs,
+                });
+
+                // Extract sale orders from CreateSale events
+                for (const log of parsedLogs) {
+                    if ((log as any).eventName === 'CreateSale' && (log as any).args) {
+                        const saleOrder = {
+                            saleId: (log as any).args.saleId as bigint,
+                            tokenId: (log as any).args.tokenId as bigint,
+                            sellerAddress: (log as any).args.sellerAddress as string,
+                            sourceChainId: (log as any).args.sourceChainId as bigint,
+                            destinationChainId: (log as any).args.destinationChainId as bigint,
+                            priceInUsd: (log as any).args.priceInUsd as bigint,
+                        };
+
+                        // Check if this sale order already exists to avoid duplicates
+                        const existingSale = saleOrders.find(order =>
+                            order.saleId === saleOrder.saleId &&
+                            order.tokenId === saleOrder.tokenId
+                        );
+
+                        if (!existingSale) {
+                            saleOrders.push(saleOrder);
+                        }
+                    }
+                }
+
+                // Small delay between requests to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+            } catch (chunkError) {
+                console.warn(`Error fetching CreateSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                // Continue with next chunk even if one fails
+            }
+        }
+
+        console.log(`Found ${saleOrders.length} sale orders`);
+
+        return {
+            success: true,
+            saleOrders: saleOrders,
+        };
+    } catch (error) {
+        console.error("Error getting sale order list:", error);
+        return {
+            success: false,
+            saleOrders: [],
+        };
+    }
+}
+
+const getCanceledSaleOrderList = async (contractAddress: string): Promise<{ success: boolean; canceldOrders: any[] }> => {
+    try {
+        const publicClient = getPublicClient(config);
+
+        if (!publicClient) {
+            throw new Error('Public client not available');
+        }
+
+        const currentBlock = await publicClient.getBlockNumber();
+        const canceldOrders: any[] = [];
+
+        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
+        const BLOCK_CHUNK_SIZE = 10000;
+        const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
+
+        const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
+        const endBlock = currentBlock;
+
+        // Query logs in chunks to avoid "exceed maximum block range" error
+        for (let fromBlock = startBlock; fromBlock < endBlock; fromBlock += BigInt(BLOCK_CHUNK_SIZE)) {
+            const toBlock = fromBlock + BigInt(BLOCK_CHUNK_SIZE) - BigInt(1);
+            const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
+
+            try {
+                console.log(`Fetching CreateSale events from block ${fromBlock} to ${actualToBlock}`);
+
+                // Query CreateSale events
+                const logs = await publicClient.getLogs({
+                    address: contractAddress as `0x${string}`,
+                    event: {
+                        type: 'event',
+                        name: 'CancelSale',
+                        inputs: DeCupManagerABI.abi.find((item: any) => item.type === 'event' && item.name === 'CancelSale')?.inputs || []
+                    },
+                    fromBlock: fromBlock,
+                    toBlock: actualToBlock
+                });
+
+                // Parse the logs to extract sale orders
+                const parsedLogs = parseEventLogs({
+                    abi: DeCupManagerABI.abi,
+                    logs: logs,
+                });
+
+                // Extract sale orders from CreateSale events
+                for (const log of parsedLogs) {
+                    if ((log as any).eventName === 'CancelSale' && (log as any).args) {
+                        const canceldOrder = {
+                            saleId: (log as any).args.saleId as bigint,
+                        };
+
+                        // Check if this sale order already exists to avoid duplicates
+                        const existingSale = canceldOrders.find(order =>
+                            order.saleId === canceldOrder.saleId
+                        );
+
+                        if (!existingSale) {
+                            canceldOrders.push(canceldOrder);
+                        }
+                    }
+                }
+
+                // Small delay between requests to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+            } catch (chunkError) {
+                console.warn(`Error fetching CreateSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                // Continue with next chunk even if one fails
+            }
+        }
+
+        console.log(`Found ${canceldOrders.length} canceld orders`);
+
+        return {
+            success: true,
+            canceldOrders: canceldOrders,
+        };
+    } catch (error) {
+        console.error("Error getting sale order list:", error);
+        return {
+            success: false,
+            canceldOrders: [],
+        };
+    }
+}
+
+const getCcipCollateralInEth = async (saleId: bigint, contractAddress: string): Promise<{ success: boolean; collateralEth: number }> => {
+
+    let success = false
+    let collateralEth = 0
+
+    try {
+        const collateral = await readContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupManagerABI.abi,
+            functionName: 'getCcipCollateralInEth',
+            args: [],
+        })
+
+        if (collateral) {
+            success = true
+            collateralEth = collateral as number
+        }
+    } catch (error) {
+        console.error("Error getting sale order price in ETH:", error)
+        throw error
+    }
+
+    return { success, collateralEth }
+}
+
+const getCcipCollateralInUsd = async (contractAddress: string): Promise<{ success: boolean; collateralUsd: number }> => {
+
+    let success = false
+    let collateralUsd = 0
+
+    try {
+        const collateral = await readContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupManagerABI.abi,
+            functionName: 'getCcipCollateralInUsd',
+            args: [],
+        })
+
+        if (collateral) {
+            success = true
+            collateralUsd = collateral as number
+        }
+    } catch (error) {
+        console.error("Error getting sale order price in USD:", error)
+        throw error
+    }
+
+    return { success, collateralUsd }
+}
+
+/**
+ * @notice Gets the price of a token in ETH
+ * @param priceInUsd The price of the token in USD
+ * @param contractAddress The address of the DeCupManager contract
+ * @returns { success: boolean, priceInEth: number }
+ */
+const getPriceInETH = async (priceInUsd: number, contractAddress: string): Promise<{ success: boolean; priceInEth: number }> => {
+    let success = false
+    let priceInEth = 0
+
+    try {
+        const price = await readContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupManagerABI.abi,
+            functionName: 'getPriceInETH',
+            args: [priceInUsd],
+        })
+
+        if (price) {
+            success = true
+            priceInEth = price as number
+        }
+    } catch (error) {
+        console.error("Error getting sale order price in ETH:", error)
+        throw error
+    }
+
+    return { success, priceInEth }
+
+}
+
+/**
+ * @notice Gets if a token is listed for sale
+ * @param tokenId The ID of the token
+ * @param contractAddress The address of the DeCup contract
+ * @returns { success: boolean, isListed: boolean }
+ */
+const getIsListedForSale = async (tokenId: number, contractAddress: string): Promise<{ success: boolean, isListed: boolean }> => {
+    let success = false
+    let isListed = false
+
+    try {
+        const listed = await readContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupABI.abi,
+            functionName: 'getIsListedForSale',
+            args: [tokenId],
+        })
+
+        if (listed) {
+            success = true
+            isListed = listed as boolean
+        }
+    } catch (error) {
+        console.error("Error getting token is listed for sale:", error)
+        throw error
+    }
+
+    return { success, isListed }
+
+}
+/**
+ * @notice Gets the sale order for a given chainId and saleId
+ * @param chainId The ID of the chain
+ * @param saleId The ID of the sale
+ * @param contractAddress The address of the DeCupManager contract
+ * @returns { success: boolean, saleOrder: any }
+ */
+const getSaleOrder = async (chainId: number, saleId: number, contractAddress: string): Promise<{ success: boolean, saleOrder: any }> => {
+    let success = false
+    let saleOrder: any
+
+    try {
+        const order = await readContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupManagerABI.abi,
+            functionName: 'getSaleOrder',
+            args: [chainId, saleId],
+        })
+
+        if (order) {
+            success = true
+            saleOrder = order as any
+        }
+    } catch (error) {
+        console.error("Error getting token is listed for sale:", error)
+        throw error
+    }
+
+    return { success, saleOrder }
+}
+
 export {
     depositNative,
     depositERC20,
@@ -410,5 +897,13 @@ export {
     cancelSale,
     getTokenPriceInUsd,
     getMyDeCupNfts,
-    getTokenAssetsList
+    getTokenAssetsList,
+    getSaleOrderList,
+    getCcipCollateralInEth,
+    getCcipCollateralInUsd,
+    getPriceInETH,
+    getIsListedForSale,
+    getSaleOrder,
+    getCanceledSaleOrderList,
+    burn
 }

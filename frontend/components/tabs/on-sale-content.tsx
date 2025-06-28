@@ -1,19 +1,35 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { useNFTSaleStore, type DeCupNFTSale } from "@/store/nft-sale-store"
+import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
+import { getSaleOrderList, getPriceInETH, getCanceledSaleOrderList, getSaleOrder, getTokenPriceInUsd, getTokenAssetsList } from "@/lib/contracts/interactions"
+import { getContractAddresses, getTokenSymbols } from "@/lib/contracts/addresses"
+import { useAccount, useChainId } from "wagmi"
+import { getChainNameById } from "@/lib/contracts/chains"
+import { getMyDeCupNfts } from "@/lib/contracts/interactions"
 
 type SortField = "saleId" | "price" | "totalCollateral" | "chain"
 type SortDirection = "asc" | "desc"
 
 export default function OnSaleContent() {
-    const { onSaleNfts } = useNFTSaleStore()
+    const { myListNfts, onSaleNfts, clearAllNftData, createNFT, deleteNFT, toggleListing, getNFTById } = useNFTStore()
+    const { listedSales, clearAllSaleData, createNFTSale } = useNFTSaleStore()
+
+    // Get the store instance to access current state
+    const nftSaleStore = useNFTSaleStore.getState
+
+
+
     const [sortField, setSortField] = useState<SortField>("saleId")
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
+
+    const chainId = useChainId()
+    const { address, isConnected } = useAccount()
 
     const handleSort = (field: SortField) => {
         const newDirection = sortField === field && sortDirection === "asc" ? "desc" : "asc"
@@ -22,7 +38,7 @@ export default function OnSaleContent() {
     }
 
     const getSortedNfts = (): DeCupNFTSale[] => {
-        return [...onSaleNfts].sort((a, b) => {
+        return [...listedSales].sort((a, b) => {
             let aValue: string | number
             let bValue: string | number
 
@@ -67,6 +83,89 @@ export default function OnSaleContent() {
     }
 
     const sortedNfts = getSortedNfts()
+
+    const fetchSaleOrders = async () => {
+        let tokenSymbols: string[] = []
+        console.log("callling getSaleOrderList")
+        const { success, saleOrders } = await getSaleOrderList(getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
+        const { success: successCanceledOrders, canceldOrders } = await getCanceledSaleOrderList(getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
+
+        // Filter out canceled orders from sale orders
+        const canceledOrderIds = new Set(canceldOrders?.map(order => Number(order.saleId)) || [])
+        const activeSaleOrders = saleOrders?.filter(order => !canceledOrderIds.has(Number(order.saleId))) || []
+
+
+
+        console.log("call getSaleOrderList: ", success)
+        if (success) {
+            for (const saleOrder of activeSaleOrders) {
+                console.log(saleOrder)
+                const tokenPriceInUsd = saleOrder.priceInUsd
+                const { success: successEth, priceInEth } = await getPriceInETH(tokenPriceInUsd, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
+
+                const tokenPriceInUsdDisplay = parseFloat((Number(tokenPriceInUsd) / 10 ** 8).toFixed(2))
+                const priceInEthDisplay = parseFloat(((successEth ? Number(priceInEth) : 0) / 10 ** 18).toFixed(2))
+
+                // const tokenAddresses: string[] = []
+                // for (const tokenAddress of tokenAddresses) {
+                //     const chainTokens = getTokenSymbols[chainId as keyof typeof getTokenSymbols];
+                //     const symbol = chainTokens?.[tokenAddress as keyof typeof chainTokens];
+                //     tokenSymbols.push(symbol);
+                // }
+
+                // Convert BigInt chain ID to proper chain name
+                const chainName = getChainNameById[Number(saleOrder.sourceChainId) as keyof typeof getChainNameById]
+
+
+                console.log(saleOrder.tokenId, " ", saleOrder.saleId, " ", chainName, " ", tokenPriceInUsdDisplay, " ", priceInEthDisplay, "", saleOrder.sellerAddress, " ", saleOrder.sourceChainId, " ", saleOrder.destinationChainId, " assets:", tokenSymbols)
+
+
+
+                createNFTSale({
+                    saleId: Number(saleOrder.saleId),
+                    price: priceInEthDisplay,
+                    assets: tokenSymbols.map((symbol, index) => ({
+                        id: index.toString(),
+                        token: symbol,
+                        amount: 1,
+                        walletAddress: saleOrder.sellerAddress as `0x${string}`,
+                        deposited: true
+                    })),
+                    totalCollateral: tokenPriceInUsdDisplay,
+                    chain: chainName as "Sepolia" | "AvalancheFuji",
+                    beneficialWallet: saleOrder.beneficiaryAddress //TODO: get beneficial wallet
+                })
+
+
+            }
+        }
+        // Get current state from store (not the captured closure value)
+        const currentListedSales = nftSaleStore().listedSales
+        console.log("listedSales after fetch:", currentListedSales)
+    }
+
+    // useEffect(() => {
+
+    //     fetchSaleOrders()
+    // }, [])
+
+    // Log whenever listedSales changes (for debugging)
+    // useEffect(() => {
+    //     console.log("listedSales state changed:", listedSales)
+    // }, [listedSales])
+
+    useEffect(() => {
+        console.log("Main useEffect - listedSales:", listedSales)
+        if (isConnected && address) {
+            if (nftSaleStore().listedSales.length === 0) {
+                fetchSaleOrders()
+            }
+        } else {
+            clearAllSaleData()
+            clearAllNftData()
+        }
+    }, [chainId, address, isConnected])
+
 
     return (
         <main className="flex-1 flex justify-center items-center">
