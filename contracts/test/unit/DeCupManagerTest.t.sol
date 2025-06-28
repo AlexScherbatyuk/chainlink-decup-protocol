@@ -181,20 +181,30 @@ contract DeCupManagerTest is Test {
 
         vm.prank(user2);
         vm.expectRevert(DeCupManager.DeCupManager__InsufficientETH.selector);
-        decupManager.createCrossSale{value: insufficientAmount}(TEST_TOKEN_ID, user1, TEST_NETWORK_ID);
+        decupManager.createCrossSale{value: insufficientAmount}(TEST_TOKEN_ID, user1, TEST_NETWORK_ID, TEST_PRICE_USD);
     }
 
     function testCreateCrossSaleRevertsWithZeroValue() public {
         vm.prank(user2);
         vm.expectRevert(DeCupManager.DeCupManager__MoreThanZero.selector);
-        decupManager.createCrossSale{value: 0}(TEST_TOKEN_ID, user1, TEST_NETWORK_ID);
+        decupManager.createCrossSale{value: 0}(TEST_TOKEN_ID, user1, TEST_NETWORK_ID, TEST_PRICE_USD);
     }
 
     /*//////////////////////////////////////////////////////////////
                         SALE CANCELLATION TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testCancelSaleRevertsWithNonexistentSale() public {
+    function testCancelExistingSale() public createSale(user1) {
+        uint256 saleId = 0;
+
+        vm.expectEmit(true, true, false, true);
+        emit CancelSale(saleId);
+
+        vm.prank(user1);
+        decupManager.cancelSale(saleId);
+    }
+
+    function testCancelSaleRevertsWithNonExistentSale() public {
         uint256 nonexistentSaleId = 999;
 
         vm.expectRevert(DeCupManager.DeCupManager__SaleNotFound.selector);

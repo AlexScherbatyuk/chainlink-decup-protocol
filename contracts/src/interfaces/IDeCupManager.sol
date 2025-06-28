@@ -87,17 +87,6 @@ interface IDeCupManager {
         uint256 priceInUsd
     );
 
-    // State variables getters
-    function s_ccipCollateralInUsd() external view returns (uint256);
-    function s_priceFeedAddress() external view returns (address);
-    function s_saleCounter() external view returns (uint256);
-    function s_payFeesIn() external view returns (PayFeesIn);
-    function s_chainIdToSaleIdToSaleOrder(uint256 chainId, uint256 saleId) external view returns (Order memory);
-    function s_chainIdToChainSelector(uint256 chainId) external view returns (uint64);
-    function s_chainIdToLinkAddress(uint256 chainId) external view returns (address);
-    function s_chainIdToReceiverAddress(uint256 chainId) external view returns (address);
-    function s_chainIdToRouterAddress(uint256 chainId) external view returns (address);
-
     // External Functions
     receive() external payable;
     function withdrawFunds() external;
@@ -111,6 +100,8 @@ interface IDeCupManager {
         payable;
     function ccipReceive(Client.Any2EVMMessage memory message) external;
     function getSaleOwner(uint256 saleId, uint256 chainId) external view returns (address);
+
+    // Public Functions
     function enableChain(
         uint256 chainId,
         uint64 chainSelector,
@@ -135,4 +126,13 @@ interface IDeCupManager {
     function balanceOf(address user) external view returns (uint256);
     function getCCIPRouter() external view returns (address);
     function getCcipCollateralInEth() external view returns (uint256);
+    function getPayFeesIn() external view returns (PayFeesIn);
+    function getPriceFeedAddress() external view returns (address);
+    function getSaleCounter() external view returns (uint256);
+    function getCcipCollateralInUsd() external view returns (uint256);
+    function getChainSelector(uint256 chainId) external view returns (uint64);
+    function getLinkAddress(uint256 chainId) external view returns (address);
+    function getReceiverAddress(uint256 chainId) external view returns (address);
+    function getRouterAddress(uint256 chainId) external view returns (address);
+    function getSaleOrder(uint256 chainId, uint256 saleId) external view returns (Order memory);
 }

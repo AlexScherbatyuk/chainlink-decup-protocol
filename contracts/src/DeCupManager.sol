@@ -73,6 +73,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         address sellerAddress;
         address beneficiaryAddress;
         uint256 chainId;
+        uint256 priceInUsd;
     }
 
     /**
@@ -117,7 +118,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         uint256 indexed tokenId,
         address indexed sellerAddress,
         uint256 sourceChainId,
-        uint256 destinationChainId
+        uint256 destinationChainId,
+        uint256 priceInUsd
     );
     event Buy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
     event BuyCrossSale(
@@ -268,12 +270,12 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param beneficiaryAddress The address that will receive payment
      * @param destinationChainId The ID of the target chain where the sale will be created
      */
-    function createCrossSale(uint256 tokenId, address beneficiaryAddress, uint256 destinationChainId)
-        external
-        payable
-        moreThanZero(msg.value)
-        nonReentrant
-    {
+    function createCrossSale(
+        uint256 tokenId,
+        address beneficiaryAddress,
+        uint256 destinationChainId,
+        uint256 priceInUsd
+    ) external payable moreThanZero(msg.value) nonReentrant {
         // Checks
         uint256 ccipCollateralInEth = getPriceInETH(s_ccipCollateralInUsd);
         if (msg.value < ccipCollateralInEth) {
@@ -300,7 +302,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 tokenId: tokenId,
                 sellerAddress: msg.sender,
                 beneficiaryAddress: beneficiaryAddress,
-                chainId: block.chainid
+                chainId: block.chainid,
+                priceInUsd: priceInUsd
             }),
             buyerAddress: address(0),
             isBurn: false,
@@ -405,9 +408,12 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         //uint256 priceInETH = getPriceInETHIncludingCollateral(priceInUsd);
         Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[destinationChainId][saleId];
         uint256 ccipCollateralInEth = getPriceInETH(s_ccipCollateralInUsd);
-        if (msg.value <= ccipCollateralInEth) {
+        uint256 priceInEth = getPriceInETH(saleOrder.priceInUsd);
+
+        if (msg.value < (priceInEth + ccipCollateralInEth)) {
             revert DeCupManager__InsufficientETH();
         }
+
         emit BuyCrossSale(saleId, msg.sender, msg.value, saleOrder.beneficiaryAddress);
 
         uint256 sallersPayment = msg.value - ccipCollateralInEth;
@@ -467,7 +473,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 messageData.order.tokenId,
                 messageData.order.sellerAddress,
                 messageData.order.beneficiaryAddress,
-                messageData.order.chainId
+                messageData.order.chainId,
+                messageData.order.priceInUsd
             );
         } else if (messageData.action == CrossChainAction.CancelSale) {
             _cancelSale(messageData.order.tokenId, messageData.order.sellerAddress, messageData.order.chainId);
@@ -477,7 +484,6 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 messageData.order.tokenId,
                 messageData.order.sellerAddress,
                 messageData.buyerAddress,
-                messageData.priceInUsd,
                 messageData.isBurn
             );
         } else {
@@ -567,7 +573,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
             revert DeCupManager__NotOwner();
         }
 
-        uint256 priceInUsd = s_nft.getTokenPriceInUsd(tokenId);
+        uint256 priceInUsd = saleOrder.priceInUsd;
         uint256 priceInETH = getPriceInETH(priceInUsd);
         if (msg.value < priceInETH) {
             revert DeCupManager__InsufficientETH();
@@ -577,8 +583,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         _addCollateral(saleOrder.beneficiaryAddress, priceInETH);
 
         // Interactions
-        (, bool success) =
-            _buy(saleId, saleOrder.tokenId, saleOrder.sellerAddress, buyerBeneficiaryAddress, priceInUsd, isBurn);
+        (, bool success) = _buy(saleId, saleOrder.tokenId, saleOrder.sellerAddress, buyerBeneficiaryAddress, isBurn);
         if (!success) {
             revert DeCupManager__TransferFailed();
         }
@@ -614,7 +619,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         }
         // Effects
         //address sellerAddress = beneficiaryAddress == address(0) ? s_nft.ownerOf(tokenId) : beneficiaryAddress;
-        _createSale(tokenId, msg.sender, beneficiaryAddress, block.chainid);
+        _createSale(tokenId, msg.sender, beneficiaryAddress, block.chainid, s_nft.getTokenPriceInUsd(tokenId));
 
         // Interactions
         s_nft.listForSale(tokenId);
@@ -664,17 +669,13 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         uint256 tokenId,
         address sellerAddress,
         address buyerAddress,
-        uint256 priceInUsd,
+        //uint256 priceInUsd,
         bool isBurn
     ) internal returns (uint256, bool) {
         bool success = false;
 
         if (s_nft.ownerOf(tokenId) != sellerAddress) {
             revert DeCupManager__NotTokenOwner();
-        }
-
-        if (priceInUsd < s_nft.getTokenPriceInUsd(tokenId)) {
-            revert DeCupManager__InsufficientFunds();
         }
 
         if (isBurn) {
@@ -700,19 +701,24 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param beneficiaryAddress The address that will receive payment
      * @param chainId The ID of the chain where the sale is created
      */
-    function _createSale(uint256 tokenId, address sellerAddress, address beneficiaryAddress, uint256 chainId)
-        internal
-    {
+    function _createSale(
+        uint256 tokenId,
+        address sellerAddress,
+        address beneficiaryAddress,
+        uint256 chainId,
+        uint256 priceInUsd
+    ) internal {
         uint256 saleId = s_saleCounter;
         Order memory saleOrder = Order({
             tokenId: tokenId,
             sellerAddress: sellerAddress,
             beneficiaryAddress: beneficiaryAddress,
-            chainId: chainId
+            chainId: chainId,
+            priceInUsd: priceInUsd
         });
         s_chainIdToSaleIdToSaleOrder[chainId][saleId] = saleOrder;
         s_saleCounter++;
-        emit CreateSale(saleId, tokenId, sellerAddress, block.chainid, chainId);
+        emit CreateSale(saleId, tokenId, sellerAddress, block.chainid, chainId, priceInUsd);
     }
 
     /**

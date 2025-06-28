@@ -186,7 +186,7 @@ contract CCIPInteractionsTest is Test {
         console.log("decupTCL", decupTCL);
 
         // 1.2 List DeCup NFT for sale on Avalanche Fuji
-        ethSepoliaDeCupManager.createCrossSale{value: minCollateral}(0, seller, FUJI_CHAIN_ID);
+        ethSepoliaDeCupManager.createCrossSale{value: minCollateral}(0, seller, FUJI_CHAIN_ID, decupTCL);
         uint256 sellerDeCupManagerBalanceAfterListing = ethSepoliaDeCupManager.balanceOf(seller);
         uint256 sellerBalanceAfterListing = address(seller).balance;
         console.log("sellerBalanceAfterListing", sellerBalanceAfterListing);
@@ -222,8 +222,8 @@ contract CCIPInteractionsTest is Test {
         assert(avaxAmountInUsd >= decupTCL);
 
         console.log("seller balance on fuji before buy", address(seller).balance);
-        //2399 4000 0000
-        //132 873 018 534 226 098 472
+        // //2399 4000 0000
+        // //132 873 018 534 226 098 472
         avlFujiDeCupManager.buyCrossSale{value: requiredAvax}(0, buyer, SEPOLIA_CHAIN_ID, false);
 
         // uint256 priceInETH = ethSepoliaDeCupManager.getPriceInETHIncludingCollateral(priceInUsd);
