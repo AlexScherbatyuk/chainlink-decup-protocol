@@ -138,7 +138,7 @@ contract DeCupManagerTest is Test {
         vm.prank(msg.sender);
         decupManager.setCcipCollateral(newCollateral);
 
-        assertEq(decupManager.s_ccipCollateralInUsd(), newCollateral);
+        assertEq(decupManager.getCcipCollateralInUsd(), newCollateral);
     }
 
     function testNonOwnerCannotSetCcipCollateral() public {
@@ -308,8 +308,150 @@ contract DeCupManagerTest is Test {
         assertTrue(priceInETH >= expectedMinimum, "Price should include collateral");
     }
 
+    function testGetPriceInUsd() public view {
+        uint256 testPriceInETH = 1 ether;
+        uint256 priceInUsd = decupManager.getPriceInUsd(testPriceInETH);
+        assertTrue(priceInUsd > 0, "USD price should be greater than 0");
+
+        // Test round trip conversion
+        uint256 convertedBackToETH = decupManager.getPriceInETH(priceInUsd);
+        // Allow for small rounding error due to division
+        assertTrue(
+            convertedBackToETH >= testPriceInETH - 1000 && convertedBackToETH <= testPriceInETH + 1000,
+            "Round trip conversion should be approximately equal"
+        );
+    }
+
+    function testGetPriceInETHIncludingCollateral() public view {
+        uint256 basePrice = decupManager.getPriceInETH(TEST_PRICE_USD);
+        uint256 priceWithCollateral = decupManager.getPriceInETHIncludingCollateral(TEST_PRICE_USD);
+        uint256 collateralAmount = decupManager.getCcipCollateralInEth();
+
+        assertEq(priceWithCollateral, basePrice + collateralAmount, "Price should include collateral");
+        assertTrue(priceWithCollateral > basePrice, "Price with collateral should be higher than base price");
+    }
+
     function testGetDeCupAddress() public view {
         assertEq(decupManager.getDeCupAddress(), address(deCup));
+    }
+
+    function testGetCCIPRouter() public view {
+        address router = decupManager.getCCIPRouter();
+        // On Anvil, the router might not be properly set up, so we just check it returns an address
+        // On real networks, it should be non-zero
+        if (block.chainid == 31337) {
+            // Anvil - just check that the function returns without reverting
+            console.log("CCIP Router on Anvil:", router);
+        } else {
+            assertTrue(router != address(0), "CCIP router address should not be zero on real networks");
+        }
+    }
+
+    function testGetPayFeesIn() public view {
+        DeCupManager.PayFeesIn payFeesIn = decupManager.getPayFeesIn();
+        // Should be Native (0) by default
+        assertTrue(uint256(payFeesIn) <= 1, "PayFeesIn should be valid enum value");
+    }
+
+    function testGetPriceFeedAddress() public view {
+        address priceFeed = decupManager.getPriceFeedAddress();
+        assertTrue(priceFeed != address(0), "Price feed address should not be zero");
+    }
+
+    function testGetSaleCounter() public {
+        uint256 initialCounter = decupManager.getSaleCounter();
+
+        // Create a sale to increment counter
+        vm.prank(user1);
+        decupManager.createSale(TEST_TOKEN_ID, user1);
+
+        uint256 newCounter = decupManager.getSaleCounter();
+        assertEq(newCounter, initialCounter + 1, "Sale counter should increment after creating sale");
+    }
+
+    function testGetCcipCollateralInUsd() public view {
+        uint256 collateralInUsd = decupManager.getCcipCollateralInUsd();
+        assertTrue(collateralInUsd > 0, "CCIP collateral in USD should be greater than 0");
+        // Default value should be 5e8 (5 USD with 8 decimals)
+        assertEq(collateralInUsd, 5e8, "Default CCIP collateral should be 5 USD");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    CHAIN CONFIGURATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function testGetChainSelector() public view {
+        // Test current chain selector
+        uint64 currentChainSelector = decupManager.getChainSelector(block.chainid);
+        if (block.chainid == 31337) {
+            // Anvil - selector might be 0 since we're using testnet configs
+            console.log("Chain selector on Anvil:", currentChainSelector);
+        } else {
+            assertTrue(currentChainSelector > 0, "Current chain selector should be set on real networks");
+        }
+    }
+
+    function testGetLinkAddress() public view {
+        // Test current chain LINK address
+        address linkAddress = decupManager.getLinkAddress(block.chainid);
+        if (block.chainid == 31337) {
+            // Anvil - LINK address might not be properly set up
+            console.log("LINK address on Anvil:", linkAddress);
+        } else {
+            assertTrue(linkAddress != address(0), "Current chain LINK address should be set on real networks");
+        }
+    }
+
+    function testGetReceiverAddress() public {
+        uint256 testChainId = 12345;
+        address testReceiver = makeAddr("testReceiver");
+
+        // Initially should be zero
+        assertEq(decupManager.getReceiverAddress(testChainId), address(0), "Receiver should be zero initially");
+
+        // Add receiver address
+        vm.prank(msg.sender);
+        decupManager.addChainReceiver(testChainId, testReceiver);
+
+        // Should now return the set address
+        assertEq(decupManager.getReceiverAddress(testChainId), testReceiver, "Receiver should be set correctly");
+    }
+
+    function testGetRouterAddress() public view {
+        // Test current chain router address
+        address routerAddress = decupManager.getRouterAddress(block.chainid);
+        if (block.chainid == 31337) {
+            // Anvil - router address might not be properly set up
+            console.log("Router address on Anvil:", routerAddress);
+        } else {
+            assertTrue(routerAddress != address(0), "Current chain router address should be set on real networks");
+        }
+    }
+
+    function testGetSaleOrder() public {
+        // Create a sale first
+        vm.prank(user1);
+        decupManager.createSale(TEST_TOKEN_ID, user1);
+
+        // Get the sale order
+        DeCupManager.Order memory saleOrder = decupManager.getSaleOrder(block.chainid, 0);
+
+        // Verify order details
+        assertEq(saleOrder.tokenId, TEST_TOKEN_ID, "Token ID should match");
+        assertEq(saleOrder.sellerAddress, user1, "Seller address should match");
+        assertEq(saleOrder.beneficiaryAddress, user1, "Beneficiary address should match");
+        assertEq(saleOrder.chainId, block.chainid, "Chain ID should match");
+    }
+
+    function testGetSaleOrderNonExistent() public view {
+        // Test getting a non-existent sale order
+        DeCupManager.Order memory saleOrder = decupManager.getSaleOrder(block.chainid, 999);
+
+        // Should return empty order
+        assertEq(saleOrder.tokenId, 0, "Token ID should be 0 for non-existent order");
+        assertEq(saleOrder.sellerAddress, address(0), "Seller should be zero address for non-existent order");
+        assertEq(saleOrder.beneficiaryAddress, address(0), "Beneficiary should be zero address for non-existent order");
+        assertEq(saleOrder.chainId, 0, "Chain ID should be 0 for non-existent order");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -355,7 +497,7 @@ contract DeCupManagerTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testSaleCounterIncrementsCorrectly() public createSale(user1) {
-        uint256 initialCounter = decupManager.s_saleCounter();
+        uint256 initialCounter = decupManager.getSaleCounter();
 
         // The counter should increment but we can't easily test createSale due to ownership logic
         // This test verifies the initial state
@@ -363,7 +505,7 @@ contract DeCupManagerTest is Test {
     }
 
     function testCcipCollateralDefaultValue() public view {
-        assert(decupManager.s_ccipCollateralInUsd() > 0.1e8);
+        assert(decupManager.getCcipCollateralInUsd() > 0.1e8);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -386,7 +528,7 @@ contract DeCupManagerTest is Test {
         vm.prank(msg.sender);
         decupManager.setCcipCollateral(amount);
 
-        assertEq(decupManager.s_ccipCollateralInUsd(), amount);
+        assertEq(decupManager.getCcipCollateralInUsd(), amount);
     }
 
     function testFuzzGetPriceInETH(uint256 priceInUSD) public view {
@@ -397,5 +539,46 @@ contract DeCupManagerTest is Test {
         uint256 priceInETH = decupManager.getPriceInETH(priceInUSD);
 
         assertTrue(priceInETH >= minPrice);
+    }
+
+    function testFuzzGetPriceInUsd(uint256 priceInETH) public view {
+        // Need sufficient amount to avoid rounding to 0 in USD conversion
+        vm.assume(priceInETH >= 1e15 && priceInETH <= 100 ether); // Reasonable bounds starting from 0.001 ETH
+
+        uint256 priceInUsd = decupManager.getPriceInUsd(priceInETH);
+
+        assertTrue(priceInUsd > 0, "USD price should be greater than 0");
+
+        // Test that converting back gives approximately the same result
+        uint256 convertedBack = decupManager.getPriceInETH(priceInUsd);
+        // Allow for rounding errors - should be within 0.1% of original
+        uint256 tolerance = priceInETH / 1000;
+        assertTrue(
+            convertedBack >= priceInETH - tolerance && convertedBack <= priceInETH + tolerance,
+            "Round trip conversion should be approximately equal"
+        );
+    }
+
+    function testFuzzGetPriceInETHIncludingCollateral(uint256 priceInUSD) public view {
+        vm.assume(priceInUSD > 0 && priceInUSD <= 1e12); // Reasonable bounds
+
+        uint256 basePrice = decupManager.getPriceInETH(priceInUSD);
+        uint256 priceWithCollateral = decupManager.getPriceInETHIncludingCollateral(priceInUSD);
+        uint256 collateral = decupManager.getCcipCollateralInEth();
+
+        assertEq(priceWithCollateral, basePrice + collateral, "Should add collateral to base price");
+        assertTrue(priceWithCollateral > basePrice, "Price with collateral should be higher");
+    }
+
+    function testFuzzGetChainSelector(uint256 chainId) public view {
+        vm.assume(chainId != 0);
+
+        uint64 selector = decupManager.getChainSelector(chainId);
+        // For non-configured chains, selector should be 0
+        // For configured chains (like current chain), selector should be > 0
+        if (chainId == block.chainid) {
+            assertTrue(selector > 0, "Current chain should have a selector");
+        }
+        // Note: Other chains might return 0 which is valid
     }
 }

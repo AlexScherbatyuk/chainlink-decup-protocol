@@ -141,25 +141,25 @@ contract CCIPInteractionsTest is Test {
         assertEq(vm.activeFork(), avlFujiFork);
         console.log("block.chainid", block.chainid);
 
-        assertEq(avlFujiDeCupManager.s_chainIdToReceiverAddress(SEPOLIA_CHAIN_ID), address(ethSepoliaDeCupManager));
-        assertEq(avlFujiDeCupManager.s_chainIdToChainSelector(SEPOLIA_CHAIN_ID), 16015286601757825753);
-        assertEq(avlFujiDeCupManager.s_chainIdToChainSelector(FUJI_CHAIN_ID), 14767482510784806043);
-        assertNotEq(avlFujiDeCupManager.s_chainIdToRouterAddress(SEPOLIA_CHAIN_ID), address(0));
-        assertNotEq(avlFujiDeCupManager.s_chainIdToLinkAddress(SEPOLIA_CHAIN_ID), address(0));
-        assertNotEq(avlFujiDeCupManager.s_chainIdToRouterAddress(FUJI_CHAIN_ID), address(0));
-        assertNotEq(avlFujiDeCupManager.s_chainIdToLinkAddress(FUJI_CHAIN_ID), address(0));
+        assertEq(avlFujiDeCupManager.getReceiverAddress(SEPOLIA_CHAIN_ID), address(ethSepoliaDeCupManager));
+        assertEq(avlFujiDeCupManager.getChainSelector(SEPOLIA_CHAIN_ID), 16015286601757825753);
+        assertEq(avlFujiDeCupManager.getChainSelector(FUJI_CHAIN_ID), 14767482510784806043);
+        assertNotEq(avlFujiDeCupManager.getRouterAddress(SEPOLIA_CHAIN_ID), address(0));
+        assertNotEq(avlFujiDeCupManager.getLinkAddress(SEPOLIA_CHAIN_ID), address(0));
+        assertNotEq(avlFujiDeCupManager.getRouterAddress(FUJI_CHAIN_ID), address(0));
+        assertNotEq(avlFujiDeCupManager.getLinkAddress(FUJI_CHAIN_ID), address(0));
 
         // Sepolia
         vm.selectFork(ethSepoliaFork);
         assertEq(vm.activeFork(), ethSepoliaFork);
 
-        assertEq(ethSepoliaDeCupManager.s_chainIdToReceiverAddress(FUJI_CHAIN_ID), address(avlFujiDeCupManager));
-        assertEq(ethSepoliaDeCupManager.s_chainIdToChainSelector(SEPOLIA_CHAIN_ID), 16015286601757825753);
-        assertEq(ethSepoliaDeCupManager.s_chainIdToChainSelector(FUJI_CHAIN_ID), 14767482510784806043);
-        assertNotEq(ethSepoliaDeCupManager.s_chainIdToRouterAddress(SEPOLIA_CHAIN_ID), address(0));
-        assertNotEq(ethSepoliaDeCupManager.s_chainIdToLinkAddress(SEPOLIA_CHAIN_ID), address(0));
-        assertNotEq(ethSepoliaDeCupManager.s_chainIdToRouterAddress(FUJI_CHAIN_ID), address(0));
-        assertNotEq(ethSepoliaDeCupManager.s_chainIdToLinkAddress(FUJI_CHAIN_ID), address(0));
+        assertEq(ethSepoliaDeCupManager.getReceiverAddress(FUJI_CHAIN_ID), address(avlFujiDeCupManager));
+        assertEq(ethSepoliaDeCupManager.getChainSelector(SEPOLIA_CHAIN_ID), 16015286601757825753);
+        assertEq(ethSepoliaDeCupManager.getChainSelector(FUJI_CHAIN_ID), 14767482510784806043);
+        assertNotEq(ethSepoliaDeCupManager.getRouterAddress(SEPOLIA_CHAIN_ID), address(0));
+        assertNotEq(ethSepoliaDeCupManager.getLinkAddress(SEPOLIA_CHAIN_ID), address(0));
+        assertNotEq(ethSepoliaDeCupManager.getRouterAddress(FUJI_CHAIN_ID), address(0));
+        assertNotEq(ethSepoliaDeCupManager.getLinkAddress(FUJI_CHAIN_ID), address(0));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -204,7 +204,7 @@ contract CCIPInteractionsTest is Test {
 
         //console.log("avlFujiDeCupManager addeess", address(avlFujiDeCupManager));
         //console.log(avlFujiDeCupManager.s_saleCounter());
-        assert(avlFujiDeCupManager.s_saleCounter() > 0);
+        assert(avlFujiDeCupManager.getSaleCounter() > 0);
 
         assertEq(avlFujiDeCupManager.getSaleOwner(0, SEPOLIA_CHAIN_ID), seller);
 

@@ -93,20 +93,20 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     }
 
     // State variables
-    uint256 public s_ccipCollateralInUsd;
-    address public s_priceFeedAddress;
-    uint256 public s_saleCounter;
-    PayFeesIn public s_payFeesIn = PayFeesIn.Native;
+    uint256 private s_ccipCollateralInUsd;
+    address private s_priceFeedAddress;
+    uint256 private s_saleCounter;
+    PayFeesIn private s_payFeesIn = PayFeesIn.Native;
     uint64 private immutable i_currentChainSelector;
 
     mapping(address user => uint256 collateral) private s_userToCollateral;
     //mapping(uint256 saleId => address buyerAddress) public s_saleIdToBuyerAddress;
     //mapping(address buyer => mapping(uint256 => uint256)) public s_buyerPaiedAmount;
-    mapping(uint256 chainId => mapping(uint256 saleId => Order saleOrder)) public s_chainIdToSaleIdToSaleOrder;
-    mapping(uint256 chainId => uint64 chainSelector) public s_chainIdToChainSelector;
-    mapping(uint256 chainId => address linkAddress) public s_chainIdToLinkAddress;
-    mapping(uint256 chainId => address receiverAddress) public s_chainIdToReceiverAddress;
-    mapping(uint256 chainId => address routerAddress) public s_chainIdToRouterAddress;
+    mapping(uint256 chainId => mapping(uint256 saleId => Order saleOrder)) private s_chainIdToSaleIdToSaleOrder;
+    mapping(uint256 chainId => uint64 chainSelector) private s_chainIdToChainSelector;
+    mapping(uint256 chainId => address linkAddress) private s_chainIdToLinkAddress;
+    mapping(uint256 chainId => address receiverAddress) private s_chainIdToReceiverAddress;
+    mapping(uint256 chainId => address routerAddress) private s_chainIdToRouterAddress;
 
     // Events
     event Deposit(address indexed user, uint256 amount);
@@ -830,17 +830,110 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         return s_chainIdToSaleIdToSaleOrder[chainId][saleId].sellerAddress;
     }
 
+    /**
+     * @notice Returns the CCIP router address
+     * @dev Returns the CCIP router address
+     * @return The CCIP router address
+     */
     function getCCIPRouter() public view returns (address) {
         return address(i_ccipRouter);
     }
 
+    /**
+     * @notice Returns the CCIP collateral in ETH
+     * @dev Returns the CCIP collateral in ETH
+     * @return The CCIP collateral in ETH
+     */
     function getCcipCollateralInEth() public view returns (uint256) {
         return getPriceInETH(s_ccipCollateralInUsd);
     }
 
-    // function supportsInterface(bytes4 interfaceId) public pure returns (bool) {
-    //     return interfaceId == type(IAny2EVMMessageReceiver).interfaceId;
-    // }
+    /**
+     * @notice Returns the pay fees in
+     * @dev Returns the pay fees in
+     * @return The pay fees in
+     */
+    function getPayFeesIn() public view returns (PayFeesIn) {
+        return s_payFeesIn;
+    }
+
+    /**
+     * @notice Returns the price feed address
+     * @dev Returns the price feed address
+     * @return The price feed address
+     */
+    function getPriceFeedAddress() public view returns (address) {
+        return s_priceFeedAddress;
+    }
+
+    /**
+     * @notice Returns the sale counter
+     * @dev Returns the sale counter
+     * @return The sale counter
+     */
+    function getSaleCounter() public view returns (uint256) {
+        return s_saleCounter;
+    }
+
+    /**
+     * @notice Returns the CCIP collateral in USD
+     * @dev Returns the CCIP collateral in USD
+     * @return The CCIP collateral in USD
+     */
+    function getCcipCollateralInUsd() public view returns (uint256) {
+        return s_ccipCollateralInUsd;
+    }
+
+    /**
+     * @notice Returns the chain selector
+     * @dev Returns the chain selector
+     * @param chainId The ID of the chain
+     * @return The chain selector
+     */
+    function getChainSelector(uint256 chainId) public view returns (uint64) {
+        return s_chainIdToChainSelector[chainId];
+    }
+
+    /**
+     * @notice Returns the link address
+     * @dev Returns the link address
+     * @param chainId The ID of the chain
+     * @return The link address
+     */
+    function getLinkAddress(uint256 chainId) public view returns (address) {
+        return s_chainIdToLinkAddress[chainId];
+    }
+
+    /**
+     * @notice Returns the receiver address
+     * @dev Returns the receiver address
+     * @param chainId The ID of the chain
+     * @return The receiver address
+     */
+    function getReceiverAddress(uint256 chainId) public view returns (address) {
+        return s_chainIdToReceiverAddress[chainId];
+    }
+
+    /**
+     * @notice Returns the router address
+     * @dev Returns the router address
+     * @param chainId The ID of the chain
+     * @return The router address
+     */
+    function getRouterAddress(uint256 chainId) public view returns (address) {
+        return s_chainIdToRouterAddress[chainId];
+    }
+
+    /**
+     * @notice Returns the sale order
+     * @dev Returns the sale order
+     * @param chainId The ID of the chain
+     * @param saleId The ID of the sale
+     * @return The sale order
+     */
+    function getSaleOrder(uint256 chainId, uint256 saleId) public view returns (Order memory) {
+        return s_chainIdToSaleIdToSaleOrder[chainId][saleId];
+    }
 }
 
 // Layout of Contract:
