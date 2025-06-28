@@ -6,9 +6,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ShoppingCart, X, Plus } from "lucide-react"
 import NFTModal from "../nft-modal"
+import ListModal from "../list-modal"
+import DeleteModal from "../delete-modal"
 import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
 import { useNFTSaleStore } from "@/store/nft-sale-store"
-import { getMyDeCupNfts, getTokenAssetsList, getTokenPriceInUsd } from "@/lib/contracts/interaction"
+import { getMyDeCupNfts, getTokenAssetsList, getTokenPriceInUsd } from "@/lib/contracts/interactions"
 import { getContractAddresses, getTokenAddresses, getTokenSymbols } from "@/lib/contracts/addresses"
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { getChainNameById } from "@/lib/contracts/chains"
@@ -30,6 +32,14 @@ export default function MyListContent() {
     const [modalMode, setModalMode] = useState<"create" | "edit">("create")
     const [editingNftId, setEditingNftId] = useState<string | undefined>()
     const [isLoading, setIsLoading] = useState(false)
+
+    // List/Unlist confirmation modal state
+    const [isListingDialogOpen, setIsListingDialogOpen] = useState(false)
+    const [nftToToggleListing, setNftToToggleListing] = useState<DeCupNFT | null>(null)
+
+    // Delete confirmation modal state
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+    const [nftToDelete, setNftToDelete] = useState<DeCupNFT | null>(null)
 
     const handleSort = (field: SortField) => {
         const newDirection = sortField === field && sortDirection === "asc" ? "desc" : "asc"
@@ -82,33 +92,51 @@ export default function MyListContent() {
         return sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
     }
 
-    const handleToggleListing = (nftId: string) => {
-        // Get the current NFT to check its listing status before toggling
-        const nft = getNFTById(nftId)
-        if (!nft) return
+    const handleToggleListingClick = (nft: DeCupNFT) => {
+        setNftToToggleListing(nft)
+        setIsListingDialogOpen(true)
+    }
 
-        const isCurrentlyListed = nft.isListedForSale
+    const handleListingConfirm = (selectedChain?: "Sepolia" | "AvalancheFuji") => {
+        if (nftToToggleListing) {
+            const isCurrentlyListed = nftToToggleListing.isListedForSale
 
-        // Keep the original toggle functionality
-        toggleListing(nftId)
-
-        // Handle sale store logic based on the previous state
-        if (isCurrentlyListed) {
-            // NFT was listed, now being unlisted - delete from sale store
-            const existingSale = getNFTSaleBySaleId(nft.tokenId)
-            if (existingSale) {
-                deleteNFTSale(existingSale.id)
+            // If we're listing (not currently listed) and a chain is provided, update the chain first
+            if (!isCurrentlyListed && selectedChain) {
+                // Update the NFT with the selected chain
+                // Note: You might need to add updateNFT method to your store if it doesn't exist
+                // updateNFT(nftToToggleListing.id, { chain: selectedChain })
             }
-        } else {
-            // NFT was not listed, now being listed - create sale in sale store
-            createNFTSale({
-                saleId: nft.tokenId,
-                price: nft.price,
-                assets: nft.assets,
-                chain: nft.chain,
-                beneficialWallet: nft.beneficialWallet
-            })
+
+            // Toggle the listing status
+            toggleListing(nftToToggleListing.id)
+
+            // Handle sale store logic based on the previous state
+            if (isCurrentlyListed) {
+                // NFT was listed, now being unlisted - delete from sale store
+                const existingSale = getNFTSaleBySaleId(nftToToggleListing.tokenId)
+                if (existingSale) {
+                    deleteNFTSale(existingSale.id)
+                }
+            } else {
+                // NFT was not listed, now being listed - create sale in sale store
+                createNFTSale({
+                    saleId: nftToToggleListing.tokenId,
+                    price: nftToToggleListing.price,
+                    assets: nftToToggleListing.assets,
+                    chain: selectedChain || nftToToggleListing.chain,
+                    beneficialWallet: nftToToggleListing.beneficialWallet
+                })
+            }
+
+            setNftToToggleListing(null)
+            setIsListingDialogOpen(false)
         }
+    }
+
+    const handleListingCancel = () => {
+        setNftToToggleListing(null)
+        setIsListingDialogOpen(false)
     }
 
     const handleEdit = (nftId: string) => {
@@ -117,10 +145,22 @@ export default function MyListContent() {
         setIsModalOpen(true)
     }
 
-    const handleDelete = (nftId: string) => {
-        if (confirm("Are you sure you want to delete this NFT?")) {
-            deleteNFT(nftId, "my-list")
+    const handleDeleteClick = (nft: DeCupNFT) => {
+        setNftToDelete(nft)
+        setIsDeleteDialogOpen(true)
+    }
+
+    const handleDeleteConfirm = () => {
+        if (nftToDelete) {
+            deleteNFT(nftToDelete.id, "my-list")
+            setNftToDelete(null)
+            setIsDeleteDialogOpen(false)
         }
+    }
+
+    const handleDeleteCancel = () => {
+        setNftToDelete(null)
+        setIsDeleteDialogOpen(false)
     }
 
     const handleCreate = () => {
@@ -281,12 +321,12 @@ export default function MyListContent() {
                                                                 size="sm"
                                                                 variant={nft.isListedForSale ? "destructive" : "default"}
                                                                 className="min-w-[80px]"
-                                                                onClick={() => handleToggleListing(nft.id)}
+                                                                onClick={() => handleToggleListingClick(nft)}
                                                             >
                                                                 {nft.isListedForSale ? (
                                                                     <>
                                                                         <X className="h-3 w-3 mr-1" />
-                                                                        Remove
+                                                                        Unlist
                                                                     </>
                                                                 ) : (
                                                                     <>
@@ -298,7 +338,7 @@ export default function MyListContent() {
                                                             <Button size="sm" variant="outline" onClick={() => handleEdit(nft.id)}>
                                                                 <Edit className="h-3 w-3" />
                                                             </Button>
-                                                            <Button size="sm" variant="outline" onClick={() => handleDelete(nft.id)}>
+                                                            <Button size="sm" variant="outline" onClick={() => handleDeleteClick(nft)}>
                                                                 <Trash2 className="h-3 w-3" />
                                                             </Button>
                                                         </div>
@@ -387,14 +427,14 @@ export default function MyListContent() {
                                                     size="sm"
                                                     variant={nft.isListedForSale ? "destructive" : "default"}
                                                     className="min-w-[80px] flex-1"
-                                                    onClick={() => handleToggleListing(nft.id)}
+                                                    onClick={() => handleToggleListingClick(nft)}
                                                 >
-                                                    {nft.isListedForSale ? "Remove" : "List"}
+                                                    {nft.isListedForSale ? "Unlist" : "List"}
                                                 </Button>
                                                 <Button size="sm" variant="outline" onClick={() => handleEdit(nft.id)}>
                                                     <Edit className="h-3 w-3" />
                                                 </Button>
-                                                <Button size="sm" variant="outline" onClick={() => handleDelete(nft.id)}>
+                                                <Button size="sm" variant="outline" onClick={() => handleDeleteClick(nft)}>
                                                     <Trash2 className="h-3 w-3" />
                                                 </Button>
                                             </div>
@@ -408,6 +448,22 @@ export default function MyListContent() {
             </div>
 
             <NFTModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} mode={modalMode} nftId={editingNftId} />
+
+            {/* List/Unlist Confirmation Modal */}
+            <ListModal
+                isOpen={isListingDialogOpen}
+                onClose={handleListingCancel}
+                nft={nftToToggleListing}
+                onConfirm={handleListingConfirm}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <DeleteModal
+                isOpen={isDeleteDialogOpen}
+                onClose={handleDeleteCancel}
+                nft={nftToDelete}
+                onConfirm={handleDeleteConfirm}
+            />
         </main>
     )
 } 

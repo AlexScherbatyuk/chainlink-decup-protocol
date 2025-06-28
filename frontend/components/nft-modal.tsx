@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trash2, Plus, Wallet } from "lucide-react"
 import { useNFTStore, type Asset, type NFTFormData } from "@/store/nft-store"
-import { depositNative, depositERC20, getTokenPriceInUsd, withdrawNativeDeCupManager, burnDeCupNFT, listDeCupNFTForSale, removeDeCupNFTFromSale } from "@/lib/contracts/interaction"
+import { depositNative, depositERC20, getTokenPriceInUsd } from "@/lib/contracts/interactions"
 import { getContractAddresses, getTokenAddresses } from "@/lib/contracts/addresses"
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 

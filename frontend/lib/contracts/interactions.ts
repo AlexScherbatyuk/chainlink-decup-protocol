@@ -211,7 +211,7 @@ const burnDeCupNFT = async (tokenId: bigint, contractAddress: string): Promise<b
     return success
 }
 
-const listDeCupNFTForSale = async (tokenId: bigint, contractAddress: string): Promise<boolean> => {
+const createSale = async (tokenId: bigint, beneficialWallet: string, contractAddress: string): Promise<boolean> => {
 
     let success = false
 
@@ -219,22 +219,22 @@ const listDeCupNFTForSale = async (tokenId: bigint, contractAddress: string): Pr
         const tx = await writeContract(config, {
             address: contractAddress as `0x${string}`,
             abi: DeCupABI.abi,
-            functionName: 'listForSale',
-            args: [tokenId],
+            functionName: 'createSale',
+            args: [tokenId, beneficialWallet],
         })
 
         if (tx) {
             success = true
         }
     } catch (error) {
-        console.error("Error listing DeCup NFT for sale:", error)
+        console.error("Error create DeCup NFT Manager sale for a token:", error)
         throw error
     }
 
     return success
 }
 
-const removeDeCupNFTFromSale = async (tokenId: bigint, contractAddress: string): Promise<boolean> => {
+const cancelSale = async (saleId: bigint, contractAddress: string): Promise<boolean> => {
 
     let success = false
 
@@ -242,15 +242,15 @@ const removeDeCupNFTFromSale = async (tokenId: bigint, contractAddress: string):
         const tx = await writeContract(config, {
             address: contractAddress as `0x${string}`,
             abi: DeCupABI.abi,
-            functionName: 'removeFromSale',
-            args: [tokenId],
+            functionName: 'cancelSale',
+            args: [saleId],
         })
 
         if (tx) {
             success = true
         }
     } catch (error) {
-        console.error("Error removing DeCup NFT from sale:", error)
+        console.error("Error removing DeCup NFT sale:", error)
         throw error
     }
 
@@ -406,8 +406,8 @@ export {
     depositERC20,
     withdrawNativeDeCupManager,
     burnDeCupNFT,
-    listDeCupNFTForSale,
-    removeDeCupNFTFromSale,
+    createSale,
+    cancelSale,
     getTokenPriceInUsd,
     getMyDeCupNfts,
     getTokenAssetsList

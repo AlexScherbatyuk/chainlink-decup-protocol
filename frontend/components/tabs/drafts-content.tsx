@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ShoppingCart, X, Plus } from "lucide-react"
 import NFTModal from "../nft-modal"
 import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
-import { getMyDeCupNfts } from "@/lib/contracts/interaction"
+import { getMyDeCupNfts } from "@/lib/contracts/interactions"
 import { getContractAddresses, getTokenAddresses } from "@/lib/contracts/addresses"
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 
