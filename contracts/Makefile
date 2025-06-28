@@ -13,7 +13,7 @@ deposit-eth-anvil:; forge script script/Interactions.s.sol:DepositNativeCurrency
 deposit-multiple-anvil:; forge script script/Interactions.s.sol:DepositMultipleAssetsAndMintNft --rpc-url 127.0.0.1:8545 --broadcast --account defaultKey -vvvv
 
 #deploy-sepolia:; forge script script/DeployDeCup.s.sol:DeployDeCup --broadcast --rpc-url $(SEPOLIA_RPC_URL) --account devKey -vvvv
-deploy-sepolia:; forge script script/DeployDeCupManageer.s.sol:DeployDeCupManager --broadcast --rpc-url $(SEPOLIA_RPC_URL) --account devKey --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+deploy-sepolia:; forge script script/DeployDeCupManager.s.sol:DeployDeCupManager --broadcast --rpc-url $(SEPOLIA_RPC_URL) --account devKey --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
 
 deposit-eth-sepolia:; forge script script/Interactions.s.sol:DepositNativeCurrencyAndMintNft --rpc-url $(SEPOLIA_RPC_URL) --broadcast --account devKey -vvvv
 
