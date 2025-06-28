@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
-import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
+import { useNFTSaleStore, type DeCupNFTSale } from "@/store/nft-sale-store"
 
-type SortField = "tokenId" | "price" | "totalCollateral" | "chain"
+type SortField = "saleId" | "price" | "totalCollateral" | "chain"
 type SortDirection = "asc" | "desc"
 
 export default function OnSaleContent() {
-    const { onSaleNfts } = useNFTStore()
-    const [sortField, setSortField] = useState<SortField>("tokenId")
+    const { onSaleNfts } = useNFTSaleStore()
+    const [sortField, setSortField] = useState<SortField>("saleId")
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
 
     const handleSort = (field: SortField) => {
@@ -21,15 +21,15 @@ export default function OnSaleContent() {
         setSortDirection(newDirection)
     }
 
-    const getSortedNfts = (): DeCupNFT[] => {
+    const getSortedNfts = (): DeCupNFTSale[] => {
         return [...onSaleNfts].sort((a, b) => {
             let aValue: string | number
             let bValue: string | number
 
             switch (sortField) {
-                case "tokenId":
-                    aValue = a.tokenId
-                    bValue = b.tokenId
+                case "saleId":
+                    aValue = a.saleId
+                    bValue = b.saleId
                     break
                 case "price":
                     aValue = a.price
@@ -92,9 +92,9 @@ export default function OnSaleContent() {
                                                     <Button
                                                         variant="ghost"
                                                         className="h-auto p-0 font-medium"
-                                                        onClick={() => handleSort("tokenId")}
+                                                        onClick={() => handleSort("saleId")}
                                                     >
-                                                        Token ID {getSortIcon("tokenId")}
+                                                        Sale ID {getSortIcon("saleId")}
                                                     </Button>
                                                 </th>
                                                 <th className="text-left p-4 font-medium">
@@ -135,12 +135,12 @@ export default function OnSaleContent() {
                                                         <div className="relative">
                                                             <img
                                                                 src={nft.icon || "/placeholder.svg"}
-                                                                alt={`DeCup NFT ${nft.tokenId}`}
+                                                                alt={`DeCup NFT Sale ${nft.saleId}`}
                                                                 className="h-10 w-10 rounded-lg object-cover"
                                                             />
                                                         </div>
                                                     </td>
-                                                    <td className="p-4 font-mono">#{nft.tokenId}</td>
+                                                    <td className="p-4 font-mono">#{nft.saleId}</td>
                                                     <td className="p-4 font-semibold">{nft.price} ETH</td>
                                                     <td className="p-4">${nft.totalCollateral.toLocaleString()}</td>
                                                     <td className="p-4">
@@ -176,11 +176,11 @@ export default function OnSaleContent() {
                     <div className="md:hidden space-y-4">
                         <div className="flex gap-2 overflow-x-auto pb-2">
                             <Button
-                                variant={sortField === "tokenId" ? "default" : "outline"}
+                                variant={sortField === "saleId" ? "default" : "outline"}
                                 size="sm"
-                                onClick={() => handleSort("tokenId")}
+                                onClick={() => handleSort("saleId")}
                             >
-                                Token ID {getSortIcon("tokenId")}
+                                Sale ID {getSortIcon("saleId")}
                             </Button>
                             <Button
                                 variant={sortField === "price" ? "default" : "outline"}
@@ -212,13 +212,13 @@ export default function OnSaleContent() {
                                         <div className="relative">
                                             <img
                                                 src={nft.icon || "/placeholder.svg"}
-                                                alt={`DeCup NFT ${nft.tokenId}`}
+                                                alt={`DeCup NFT Sale ${nft.saleId}`}
                                                 className="h-16 w-16 rounded-lg object-cover flex-shrink-0"
                                             />
                                         </div>
                                         <div className="flex-1 space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <span className="font-mono text-sm">#{nft.tokenId}</span>
+                                                <span className="font-mono text-sm">#{nft.saleId}</span>
                                                 <Badge variant={nft.chain === "Sepolia" ? "default" : "outline"}>{nft.chain}</Badge>
                                             </div>
                                             <div className="flex items-center justify-between">

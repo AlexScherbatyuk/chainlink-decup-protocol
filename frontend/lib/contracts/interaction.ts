@@ -1,8 +1,15 @@
-import { sendTransaction, readContract, writeContract, waitForTransactionReceipt } from '@wagmi/core'
+import { sendTransaction, readContract, writeContract, waitForTransactionReceipt, getPublicClient } from '@wagmi/core'
 import { config } from '@/config'
 import { erc20Abi, parseEventLogs } from 'viem'
 import { DeCupManagerABI, DeCupABI } from '@/lib/contracts/abis'
 
+/**
+ * @notice Deposits a native token into the DeCup contract and mints an NFT
+ * @param amount The amount of tokens to deposit
+ * @param contractAddress The address of the DeCup contract
+ * @param walletAddress The address of the wallet to deposit the tokens from
+ * @returns { success: boolean, tokenId?: bigint }
+ */
 const depositNative = async (amount: bigint, contractAddress: string, walletAddress?: string): Promise<{ success: boolean; tokenId?: bigint }> => {
 
     let success = false
@@ -58,6 +65,14 @@ const depositNative = async (amount: bigint, contractAddress: string, walletAddr
     return { success, tokenId }
 }
 
+/**
+ * @notice Deposits an ERC20 token into the DeCup contract and mints an NFT
+ * @param amount The amount of tokens to deposit
+ * @param tokenAddress The address of the ERC20 token to deposit
+ * @param contractAddress The address of the DeCup contract
+ * @param walletAddress The address of the wallet to deposit the tokens from
+ * @returns { success: boolean, tokenId?: bigint }
+ */
 const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddress: string, walletAddress?: string): Promise<{ success: boolean; tokenId?: bigint }> => {
 
     let success = false
@@ -242,7 +257,14 @@ const removeDeCupNFTFromSale = async (tokenId: bigint, contractAddress: string):
     return success
 }
 
+/**
+ * @notice Gets the price of a token in USD
+ * @param tokenId The ID of the token
+ * @param contractAddress The address of the DeCup contract
+ * @returns { success: boolean, price: number }
+ */
 const getTokenPriceInUsd = async (tokenId: bigint, contractAddress: string): Promise<{ success: boolean; price: number }> => {
+
     let success = false
     let price = 0
 
@@ -266,6 +288,119 @@ const getTokenPriceInUsd = async (tokenId: bigint, contractAddress: string): Pro
     return { success, price }
 }
 
+/**
+ * @notice Gets the NFTs minted to a wallet
+ * @param contractAddress The address of the DeCup contract
+ * @param walletAddress The address of the wallet to get the NFTs from
+ * @returns { success: boolean, nfts: bigint[] }
+ */
+const getMyDeCupNfts = async (contractAddress: string, walletAddress: string): Promise<{ success: boolean; nfts: bigint[] }> => {
+    try {
+        const publicClient = getPublicClient(config);
+
+        if (!publicClient) {
+            throw new Error('Public client not available');
+        }
+
+        // Query Transfer events where 'to' is the wallet address (minted to this wallet)
+        const logs = await publicClient.getLogs({
+            address: contractAddress as `0x${string}`,
+            event: {
+                type: 'event',
+                name: 'Transfer',
+                inputs: [
+                    { name: 'from', type: 'address', indexed: true },
+                    { name: 'to', type: 'address', indexed: true },
+                    { name: 'tokenId', type: 'uint256', indexed: true }
+                ]
+            },
+            args: {
+                to: walletAddress as `0x${string}`
+            },
+            fromBlock: BigInt(await publicClient.getBlockNumber()) - BigInt(50000),
+            toBlock: 'latest'
+        });
+
+        // Parse the logs to extract tokenIds
+        const allTokenIds: bigint[] = [];
+        const parsedLogs = parseEventLogs({
+            abi: DeCupABI.abi,
+            logs: logs,
+        });
+
+        // Extract tokenIds from Transfer events
+        for (const log of parsedLogs) {
+            if ((log as any).eventName === 'Transfer' && (log as any).args?.tokenId !== undefined) {
+                const tokenId = (log as any).args.tokenId as bigint;
+                allTokenIds.push(tokenId);
+            }
+        }
+
+        // Filter to only include tokens still owned by the wallet
+        const currentlyOwnedNfts: bigint[] = [];
+        for (const tokenId of allTokenIds) {
+            try {
+                const currentOwner = await readContract(config, {
+                    address: contractAddress as `0x${string}`,
+                    abi: DeCupABI.abi,
+                    functionName: 'ownerOf',
+                    args: [tokenId],
+                }) as string;
+
+                if (currentOwner.toLowerCase() === walletAddress.toLowerCase()) {
+                    currentlyOwnedNfts.push(tokenId);
+                }
+            } catch (error) {
+                // Token might have been burned or doesn't exist anymore
+                console.warn(`Token ${tokenId.toString()} might have been burned:`, error);
+            }
+        }
+
+        console.log(`Found ${allTokenIds.length} tokens minted to wallet, ${currentlyOwnedNfts.length} currently owned`);
+
+        return {
+            success: true,
+            nfts: currentlyOwnedNfts,
+        };
+    } catch (error) {
+        console.error("Error getting DeCup NFTs:", error);
+        return {
+            success: false,
+            nfts: [],
+        };
+    }
+}
+
+/**
+ * @notice Gets the list of token addresses for a given tokenId
+ * @param tokenId The ID of the token
+ * @param contractAddress The address of the DeCup contract
+ * @returns { success: boolean, tokenAddresses: string[] }
+ */
+const getTokenAssetsList = async (tokenId: bigint, contractAddress: string): Promise<{ success: boolean; tokenAddresses: string[] }> => {
+
+    let success = false
+    let tokenAddresses: string[] = []
+
+    try {
+        const addresses = await readContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupABI.abi,
+            functionName: 'getTokenAssetsList',
+            args: [tokenId],
+        })
+
+        if (addresses) {
+            success = true
+            tokenAddresses = addresses as string[]
+        }
+    } catch (error) {
+        console.error("Error getting token assets list:", error)
+        throw error
+    }
+
+    return { success, tokenAddresses }
+}
 export {
     depositNative,
     depositERC20,
@@ -273,5 +408,7 @@ export {
     burnDeCupNFT,
     listDeCupNFTForSale,
     removeDeCupNFTFromSale,
-    getTokenPriceInUsd
+    getTokenPriceInUsd,
+    getMyDeCupNfts,
+    getTokenAssetsList
 }

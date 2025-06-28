@@ -281,7 +281,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
               <Label htmlFor="chain">Chain to sale NFT</Label>
               <Select
                 value={formData.chain}
-                onValueChange={(value: "Sepolia" | "Fuji") => setFormData((prev) => ({ ...prev, chain: value }))}
+                onValueChange={(value: "Sepolia" | "AvalancheFuji") => setFormData((prev) => ({ ...prev, chain: value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select chain" />

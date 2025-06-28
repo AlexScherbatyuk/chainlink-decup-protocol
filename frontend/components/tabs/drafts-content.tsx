@@ -1,18 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, Plus } from "lucide-react"
+import { ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ShoppingCart, X, Plus } from "lucide-react"
 import NFTModal from "../nft-modal"
 import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
+import { getMyDeCupNfts } from "@/lib/contracts/interaction"
+import { getContractAddresses, getTokenAddresses } from "@/lib/contracts/addresses"
+import { useAccount, useChainId, useSwitchChain } from 'wagmi'
+
 
 type SortField = "tokenId" | "price" | "totalCollateral" | "chain"
 type SortDirection = "asc" | "desc"
 
 export default function DraftsContent() {
-    const { draftNfts, deleteNFT } = useNFTStore()
+    const { myListNfts, deleteNFT, toggleListing } = useNFTStore()
+
+    const chainId = useChainId()
+    const { address, isConnected } = useAccount()
 
     const [sortField, setSortField] = useState<SortField>("tokenId")
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -27,7 +34,7 @@ export default function DraftsContent() {
     }
 
     const getSortedNfts = (): DeCupNFT[] => {
-        return [...draftNfts].sort((a, b) => {
+        return [...myListNfts].sort((a, b) => {
             let aValue: string | number
             let bValue: string | number
 
@@ -71,6 +78,10 @@ export default function DraftsContent() {
         return sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
     }
 
+    const handleToggleListing = (nftId: string) => {
+        toggleListing(nftId)
+    }
+
     const handleEdit = (nftId: string) => {
         setModalMode("edit")
         setEditingNftId(nftId)
@@ -79,7 +90,7 @@ export default function DraftsContent() {
 
     const handleDelete = (nftId: string) => {
         if (confirm("Are you sure you want to delete this NFT?")) {
-            deleteNFT(nftId, "drafts")
+            deleteNFT(nftId, "my-list")
         }
     }
 
@@ -91,24 +102,12 @@ export default function DraftsContent() {
 
     const sortedNfts = getSortedNfts()
 
-    // Empty state for drafts
-    if (sortedNfts.length === 0) {
-        return (
-            <main className="flex-1">
-                <div className="container px-4 py-8">
-                    <div className="text-center py-12">
-                        <h1 className="text-3xl font-bold tracking-tight">Draft NFTs</h1>
-                        <p className="text-muted-foreground mt-2">Your draft NFTs will appear here</p>
-                        <Button onClick={() => handleCreate()} className="flex items-center space-x-2 mt-6 mx-auto">
-                            <Plus className="h-4 w-4" />
-                            <span>Create Draft</span>
-                        </Button>
-                    </div>
-                </div>
-                <NFTModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} mode={modalMode} nftId={editingNftId} />
-            </main>
-        )
-    }
+    useEffect(() => {
+        const fetchMyDeCupNfts = async () => {
+            const { success, nfts } = await getMyDeCupNfts(getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup, address as `0x${string}`)
+        }
+        console.log(fetchMyDeCupNfts())
+    }, [])
 
     return (
         <main className="flex-1 flex justify-center items-center">
@@ -116,8 +115,8 @@ export default function DraftsContent() {
                 <div className="space-y-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold tracking-tight">Draft NFTs</h1>
-                            <p className="text-muted-foreground">Your draft NFTs waiting to be minted</p>
+                            <h1 className="text-3xl font-bold tracking-tight">My DeCup NFTs</h1>
+                            <p className="text-muted-foreground">Manage your DeCup NFT collection</p>
                         </div>
                         <Button onClick={() => handleCreate()} className="flex items-center space-x-2">
                             <Plus className="h-4 w-4" />
@@ -184,6 +183,9 @@ export default function DraftsContent() {
                                                                 alt={`DeCup NFT ${nft.tokenId}`}
                                                                 className="h-10 w-10 rounded-lg object-cover"
                                                             />
+                                                            {nft.isListedForSale && (
+                                                                <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>
+                                                            )}
                                                         </div>
                                                     </td>
                                                     <td className="p-4 font-mono">#{nft.tokenId}</td>
@@ -208,6 +210,24 @@ export default function DraftsContent() {
                                                     </td>
                                                     <td className="p-4">
                                                         <div className="flex gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant={nft.isListedForSale ? "destructive" : "default"}
+                                                                className="min-w-[80px]"
+                                                                onClick={() => handleToggleListing(nft.id)}
+                                                            >
+                                                                {nft.isListedForSale ? (
+                                                                    <>
+                                                                        <X className="h-3 w-3 mr-1" />
+                                                                        Remove
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <ShoppingCart className="h-3 w-3 mr-1" />
+                                                                        List
+                                                                    </>
+                                                                )}
+                                                            </Button>
                                                             <Button size="sm" variant="outline" onClick={() => handleEdit(nft.id)}>
                                                                 <Edit className="h-3 w-3" />
                                                             </Button>
@@ -268,6 +288,9 @@ export default function DraftsContent() {
                                                 alt={`DeCup NFT ${nft.tokenId}`}
                                                 className="h-16 w-16 rounded-lg object-cover flex-shrink-0"
                                             />
+                                            {nft.isListedForSale && (
+                                                <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full border-2 border-white"></div>
+                                            )}
                                         </div>
                                         <div className="flex-1 space-y-2">
                                             <div className="flex items-center justify-between">
@@ -293,6 +316,14 @@ export default function DraftsContent() {
                                                 )}
                                             </div>
                                             <div className="flex gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant={nft.isListedForSale ? "destructive" : "default"}
+                                                    className="min-w-[80px] flex-1"
+                                                    onClick={() => handleToggleListing(nft.id)}
+                                                >
+                                                    {nft.isListedForSale ? "Remove" : "List"}
+                                                </Button>
                                                 <Button size="sm" variant="outline" onClick={() => handleEdit(nft.id)}>
                                                     <Edit className="h-3 w-3" />
                                                 </Button>

@@ -18,7 +18,7 @@ export interface DeCupNFT {
   marketPrice?: boolean
   totalCollateral: number
   assets: Asset[]
-  chain: "Sepolia" | "Fuji"
+  chain: "Sepolia" | "AvalancheFuji"
   icon: string
   isListedForSale?: boolean
   beneficialWallet: string
@@ -31,7 +31,7 @@ export interface NFTFormData {
   price: number
   marketPrice?: boolean
   assets: Asset[]
-  chain: "Sepolia" | "Fuji"
+  chain: "Sepolia" | "AvalancheFuji"
   beneficialWallet: string
 }
 
@@ -55,6 +55,10 @@ interface NFTStore {
   generateTokenId: () => number
   initializeTestData: () => void
   clearAllData: () => void
+
+  // New functions
+  checkIfNFTExists: (id: string) => boolean
+  getNFTByTokenId: (tokenId: number) => DeCupNFT | undefined
 }
 
 // Test data generation functions
@@ -88,7 +92,7 @@ const createTestNFT = (id: string, tokenId: number, isListed = false): DeCupNFT 
     marketPrice: Math.random() > 0.5, // Random true/false for test data
     totalCollateral,
     assets,
-    chain: Math.random() > 0.5 ? "Sepolia" : "Fuji",
+    chain: Math.random() > 0.5 ? "Sepolia" : "AvalancheFuji",
     icon: `/placeholder.svg?height=40&width=40&query=DeCup NFT ${tokenId}`,
     isListedForSale: isListed,
     beneficialWallet: `0x${Math.random().toString(16).substr(2, 40)}`,
@@ -185,19 +189,51 @@ export const useNFTStore = create<NFTStore>()(
       (set, get) => ({
         // Initialize with empty or test data based on environment
         ...getInitialData(),
+        // Check if NFT exists in any list
+        checkIfNFTExists: (id: string) => {
+          const state = get()
+          return (
+            state.onSaleNfts.some((nft) => nft.id === id) ||
+            state.myListNfts.some((nft) => nft.id === id) ||
+            state.draftNfts.some((nft) => nft.id === id)
+          )
+        },
+
+        // Get NFT by tokenId from any list
+        getNFTByTokenId: (tokenId: number) => {
+          const state = get()
+          const allNfts = [...state.onSaleNfts, ...state.myListNfts, ...state.draftNfts]
+          return allNfts.find((nft) => nft.tokenId === tokenId)
+        },
 
         // Actions
         createNFT: (data: NFTFormData) => {
           const state = get()
+
+          // Check if NFT with this tokenId already exists
+          if (data.tokenId) {
+            const existingNFT = state.getNFTByTokenId(data.tokenId)
+            if (existingNFT) {
+              // Update existing NFT instead of creating new one
+              const success = state.updateNFT(existingNFT.id, data)
+              if (success) {
+                // Return the updated NFT
+                return state.getNFTByTokenId(data.tokenId)!
+              }
+            }
+          }
+
+          // Create new NFT if no existing one found
+          const tokenId = data.tokenId || state.generateTokenId()
           const newNFT: DeCupNFT = {
             id: `nft-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            tokenId: data.tokenId || state.generateTokenId(),
+            tokenId: tokenId,
             price: data.price,
             marketPrice: data.marketPrice,
             totalCollateral: state.getTotalCollateral(data.assets),
             assets: data.assets,
             chain: data.chain,
-            icon: `/placeholder.svg?height=40&width=40&query=DeCup NFT ${data.tokenId || state.generateTokenId()}`,
+            icon: `/placeholder.svg?height=40&width=40&query=DeCup NFT ${tokenId}`,
             isListedForSale: false,
             beneficialWallet: data.beneficialWallet,
             createdAt: new Date(),

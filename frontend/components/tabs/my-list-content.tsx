@@ -1,24 +1,35 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpDown, ArrowUp, ArrowDown, Edit, Trash2, ShoppingCart, X, Plus } from "lucide-react"
 import NFTModal from "../nft-modal"
 import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
+import { useNFTSaleStore } from "@/store/nft-sale-store"
+import { getMyDeCupNfts, getTokenAssetsList, getTokenPriceInUsd } from "@/lib/contracts/interaction"
+import { getContractAddresses, getTokenAddresses, getTokenSymbols } from "@/lib/contracts/addresses"
+import { useAccount, useChainId, useSwitchChain } from 'wagmi'
+import { getChainNameById } from "@/lib/contracts/chains"
+
 
 type SortField = "tokenId" | "price" | "totalCollateral" | "chain"
 type SortDirection = "asc" | "desc"
 
 export default function MyListContent() {
-    const { myListNfts, deleteNFT, toggleListing } = useNFTStore()
+    const { myListNfts, clearAllData, createNFT, deleteNFT, toggleListing, getNFTById } = useNFTStore()
+    const { createNFTSale, deleteNFTSale, getNFTSaleBySaleId } = useNFTSaleStore()
+
+    const chainId = useChainId()
+    const { address, isConnected } = useAccount()
 
     const [sortField, setSortField] = useState<SortField>("tokenId")
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [modalMode, setModalMode] = useState<"create" | "edit">("create")
     const [editingNftId, setEditingNftId] = useState<string | undefined>()
+    const [isLoading, setIsLoading] = useState(false)
 
     const handleSort = (field: SortField) => {
         const newDirection = sortField === field && sortDirection === "asc" ? "desc" : "asc"
@@ -72,7 +83,32 @@ export default function MyListContent() {
     }
 
     const handleToggleListing = (nftId: string) => {
+        // Get the current NFT to check its listing status before toggling
+        const nft = getNFTById(nftId)
+        if (!nft) return
+
+        const isCurrentlyListed = nft.isListedForSale
+
+        // Keep the original toggle functionality
         toggleListing(nftId)
+
+        // Handle sale store logic based on the previous state
+        if (isCurrentlyListed) {
+            // NFT was listed, now being unlisted - delete from sale store
+            const existingSale = getNFTSaleBySaleId(nft.tokenId)
+            if (existingSale) {
+                deleteNFTSale(existingSale.id)
+            }
+        } else {
+            // NFT was not listed, now being listed - create sale in sale store
+            createNFTSale({
+                saleId: nft.tokenId,
+                price: nft.price,
+                assets: nft.assets,
+                chain: nft.chain,
+                beneficialWallet: nft.beneficialWallet
+            })
+        }
     }
 
     const handleEdit = (nftId: string) => {
@@ -94,6 +130,59 @@ export default function MyListContent() {
     }
 
     const sortedNfts = getSortedNfts()
+
+    const fetchMyDeCupNfts = async () => {
+        try {
+            const { success, nfts } = await getMyDeCupNfts(getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup, address as `0x${string}`)
+
+            if (success && nfts.length > 0) {
+                console.log(`Found ${nfts.length} NFTs:`, nfts)
+
+                for (const tokenId of nfts) {
+                    let tokenSymbols: string[] = []
+                    let totalCollateral = await getTokenPriceInUsd(tokenId, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup)
+                    const { success, tokenAddresses } = await getTokenAssetsList(tokenId, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup)
+                    if (success) {
+                        for (const tokenAddress of tokenAddresses) {
+                            const chainTokens = getTokenSymbols[chainId as keyof typeof getTokenSymbols];
+                            const symbol = chainTokens?.[tokenAddress as keyof typeof chainTokens];
+                            tokenSymbols.push(symbol);
+                        }
+                    }
+                    console.log(tokenId, " ", totalCollateral, "[", tokenSymbols, "] ", getChainNameById[chainId as keyof typeof getChainNameById])
+                    createNFT({
+                        tokenId: Number(tokenId),
+                        price: Number(BigInt(totalCollateral.price) * BigInt(1e2) / BigInt(1e8)),
+                        assets: tokenSymbols.map((symbol, index) => ({
+                            id: index.toString(),
+                            token: symbol,
+                            amount: 1,
+                            walletAddress: address as `0x${string}`,
+                            deposited: true
+                        })),
+                        chain: getChainNameById[chainId as keyof typeof getChainNameById] as "Sepolia" | "AvalancheFuji",
+                        beneficialWallet: address as `0x${string}`
+                    })
+                }
+            } else {
+                console.log('No NFTs found or fetch failed')
+            }
+        } catch (error) {
+            console.error('Error fetching NFTs:', error)
+        } finally {
+            // setIsLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        if (isConnected && address) {
+            if (myListNfts.length === 0) {
+                fetchMyDeCupNfts()
+            }
+        } else {
+            clearAllData()
+        }
+    }, [chainId, address, isConnected])
 
     return (
         <main className="flex-1 flex justify-center items-center">
@@ -128,15 +217,7 @@ export default function MyListContent() {
                                                         Token ID {getSortIcon("tokenId")}
                                                     </Button>
                                                 </th>
-                                                <th className="text-left p-4 font-medium">
-                                                    <Button
-                                                        variant="ghost"
-                                                        className="h-auto p-0 font-medium"
-                                                        onClick={() => handleSort("price")}
-                                                    >
-                                                        Price {getSortIcon("price")}
-                                                    </Button>
-                                                </th>
+
                                                 <th className="text-left p-4 font-medium">
                                                     <Button
                                                         variant="ghost"
@@ -153,7 +234,7 @@ export default function MyListContent() {
                                                         className="h-auto p-0 font-medium"
                                                         onClick={() => handleSort("chain")}
                                                     >
-                                                        Chain {getSortIcon("chain")}
+                                                        Minted on {getSortIcon("chain")}
                                                     </Button>
                                                 </th>
                                                 <th className="text-left p-4 font-medium">Actions</th>
@@ -175,7 +256,7 @@ export default function MyListContent() {
                                                         </div>
                                                     </td>
                                                     <td className="p-4 font-mono">#{nft.tokenId}</td>
-                                                    <td className="p-4 font-semibold">{nft.price} ETH</td>
+
                                                     <td className="p-4">${nft.totalCollateral.toLocaleString()}</td>
                                                     <td className="p-4">
                                                         <div className="flex flex-wrap gap-1">
