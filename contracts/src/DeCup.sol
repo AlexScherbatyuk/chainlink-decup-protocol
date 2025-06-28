@@ -13,11 +13,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title Decentralized Cup of assets (DeCup)
  * @author Alexander Scherbatyuk
- * @notice Collaterised NFT (Cup of Assets) to be soled cross-chain as single NFT. Contract receive native currency and
- * a pre defiend number of ERC20 tokens as colleterral.
+ * @notice Collaterized NFT (Cup of Assets) to be sold cross-chain as single NFT. Contract receives native currency and
+ * a pre-defined number of ERC20 tokens as collateral.
  * @dev This contract utilizes:
  * - Chainlink Price Feeds to calculate NFT price based on assets market prices,
- * - Chainlink CCIP to papulate transfer and burn functionalities cros-chain.
+ * - Chainlink CCIP to populate transfer and burn functionalities cross-chain.
  */
 contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     // Errors
@@ -87,8 +87,8 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Modifier to check if the caller is the owner of the token
-     * @dev Reverts if the caller is not the owner of the token
+     * @notice Modifier to check if the caller is the contract owner (manager)
+     * @dev Reverts if the caller is not the contract owner
      */
     modifier isManager() {
         if (owner() != msg.sender) {
@@ -98,8 +98,9 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Modifier to check if the caller is the owner of the token
-     * @dev Reverts if the caller is not the owner of the token
+     * @notice Modifier to check if the caller is the token owner or contract owner (manager)
+     * @param tokenId The ID of the token to check
+     * @dev Reverts if the caller is neither the token owner nor the contract owner
      */
     modifier isOwnerOrManager(uint256 tokenId) {
         if (ownerOf(tokenId) != msg.sender && owner() != msg.sender) {
@@ -111,7 +112,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     /**
      * @notice Modifier to check if the token is listed for sale
      * @param tokenId The ID of the token to check
-     * @dev Reverts if the token is listed for sale
+     * @dev Reverts if the token is NOT listed for sale
      */
     modifier tokenIsListedForSale(uint256 tokenId) {
         if (!s_tokenIdIsListedForSale[tokenId]) {
@@ -121,9 +122,9 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Modifier to check if the token is listed for sale
+     * @notice Modifier to check if the token is NOT listed for sale
      * @param tokenId The ID of the token to check
-     * @dev Reverts if the token is listed for sale
+     * @dev Reverts if the token IS listed for sale
      */
     modifier tokenIsNotListedForSale(uint256 tokenId) {
         if (s_tokenIdIsListedForSale[tokenId]) {
@@ -132,6 +133,11 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         _;
     }
 
+    /**
+     * @notice Modifier to check if the token exists
+     * @param tokenId The ID of the token to check
+     * @dev Reverts if the token does not exist (no assets associated with it)
+     */
     modifier tokenExists(uint256 tokenId) {
         address[] memory assets = s_tokenIdToAssets[tokenId];
         if (assets.length == 0) {
@@ -146,6 +152,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @param _baseSvgImageUri Base URI for SVG images associated with NFTs
      * @param _tokenAddresses Array of ERC20 token addresses that can be used as collateral
      * @param _priceFeedAddresses Array of Chainlink price feed addresses corresponding to each token
+     * @param _defaultPriceFeed The default price feed address for native currency (ETH)
      */
     constructor(
         string memory _baseSvgImageUri,
@@ -205,7 +212,6 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * s
      * @notice Function to deposit an ERC20 token to an existing NFT as additional collateral
      * @param tokenAddress The ERC20 token contract address to deposit (must be a supported token with price feed)
      * @param amount The amount of tokens to deposit (must be greater than 0)
@@ -366,8 +372,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     /**
      * @notice Function to list a token for sale
      * @param tokenId The ID of the token to list for sale
-     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
-     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Only callable by contract owner (manager)
      * @dev Emits TokenListedForSale event on successful listing
      * @dev Reverts if the token is already listed for sale
      */
@@ -379,8 +384,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     /**
      * @notice Function to remove a token from sale
      * @param tokenId The ID of the token to remove from sale
-     * @dev Implements the CEI pattern (Checks-Effects-Interactions)
-     * @dev Uses nonReentrant modifier to prevent reentrancy attacks
+     * @dev Only callable by contract owner (manager)
      * @dev Emits TokenRemovedFromSale event on successful removal
      * @dev Reverts if the token is not listed for sale
      */
@@ -398,7 +402,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @param to The address to transfer the token to
      * @dev Implements the CEI pattern (Checks-Effects-Interactions)
      * @dev Uses nonReentrant modifier to prevent reentrancy attacks
-     * @dev Only callable by token owner or contract owner
+     * @dev Only callable by contract owner (manager)
      * @dev Token must be listed for sale
      */
     function transfer(uint256 tokenId, address to)
@@ -420,7 +424,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @param to The address to transfer the token to
      * @dev Implements the CEI pattern (Checks-Effects-Interactions)
      * @dev Uses nonReentrant modifier to prevent reentrancy attacks
-     * @dev Only callable by token owner or contract owner
+     * @dev Only callable by contract owner (manager)
      * @dev Token must be listed for sale
      */
     function transferAndBurn(uint256 tokenId, address to)

@@ -21,22 +21,35 @@ import {CCIPReceiver} from "@chainlink/contracts/src/v0.8/ccip/applications/CCIP
  */
 contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     // Interfaces
+    /// @dev Reference to the DeCup NFT contract
     IDeCup private s_nft;
-    //IRouterClient internal immutable i_ccipRouter;
+    /// @dev Reference to the LINK token interface for CCIP fees
     LinkTokenInterface internal immutable i_linkToken;
 
     // Errors
+    /// @dev Thrown when attempting to buy a token that is not listed for sale
     error DeCupManager__TokenNotListedForSale();
+    /// @dev Thrown when attempting to list a token that is already listed for sale
     error DeCupManager__TokenListedForSale();
+    /// @dev Thrown when the caller is not the owner of the token or sale
     error DeCupManager__NotOwner();
+    /// @dev Thrown when insufficient ETH is provided for the transaction
     error DeCupManager__InsufficientETH();
+    /// @dev Thrown when the sale ID does not exist
     error DeCupManager__SaleNotFound();
+    /// @dev Thrown when the user has insufficient funds in their collateral balance
     error DeCupManager__InsufficientFunds();
+    /// @dev Thrown when a transfer operation fails
     error DeCupManager__TransferFailed();
+    /// @dev Thrown when an amount of zero is provided where a positive amount is required
     error DeCupManager__MoreThanZero();
+    /// @dev Thrown when the caller is not the owner of the specified token
     error DeCupManager__NotTokenOwner();
+    /// @dev Thrown when the caller is not the authorized CCIP router
     error DeCupManager__NotRouter();
+    /// @dev Thrown when an invalid cross-chain action is received
     error DeCupManager__InvalidAction();
+    /// @dev Thrown when an invalid router address is provided for a chain
     error DeCupManager__InvalidRouter(address, uint256);
 
     /**
@@ -67,6 +80,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param sellerAddress The address of the seller
      * @param beneficiaryAddress The address that will receive the payment
      * @param chainId The chain ID where the sale is active
+     * @param priceInUsd The price of the NFT in USD (with 8 decimals)
      */
     struct Order {
         uint256 tokenId;
@@ -83,6 +97,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param buyerAddress The address of the buyer
      * @param isBurn Whether to burn the token after transfer
      * @param order The order details
+     * @param priceInUsd The price paid in USD (with 8 decimals)
      */
     struct CrossChainMessage {
         CrossChainAction action;
@@ -94,25 +109,38 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     }
 
     // State variables
+    /// @dev The collateral amount required for CCIP operations in USD (with 8 decimals)
     uint256 private s_ccipCollateralInUsd;
+    /// @dev Address of the Chainlink price feed for ETH/USD conversion
     address private s_priceFeedAddress;
+    /// @dev Counter for generating unique sale IDs
     uint256 private s_saleCounter;
+    /// @dev The payment method for CCIP fees (Native or LINK)
     PayFeesIn private s_payFeesIn = PayFeesIn.Native;
+    /// @dev The chain selector for the current chain
     uint64 private immutable i_currentChainSelector;
 
+    /// @dev Mapping of user addresses to their collateral balances
     mapping(address user => uint256 collateral) private s_userToCollateral;
-    //mapping(uint256 saleId => address buyerAddress) public s_saleIdToBuyerAddress;
-    //mapping(address buyer => mapping(uint256 => uint256)) public s_buyerPaiedAmount;
+    /// @dev Mapping of chain ID to sale ID to sale order details
     mapping(uint256 chainId => mapping(uint256 saleId => Order saleOrder)) private s_chainIdToSaleIdToSaleOrder;
+    /// @dev Mapping of chain ID to CCIP chain selector
     mapping(uint256 chainId => uint64 chainSelector) private s_chainIdToChainSelector;
+    /// @dev Mapping of chain ID to LINK token address
     mapping(uint256 chainId => address linkAddress) private s_chainIdToLinkAddress;
+    /// @dev Mapping of chain ID to receiver contract address
     mapping(uint256 chainId => address receiverAddress) private s_chainIdToReceiverAddress;
+    /// @dev Mapping of chain ID to CCIP router address
     mapping(uint256 chainId => address routerAddress) private s_chainIdToRouterAddress;
 
     // Events
+    /// @dev Emitted when a user deposits collateral
     event Deposit(address indexed user, uint256 amount);
+    /// @dev Emitted when a user withdraws collateral
     event Withdraw(address indexed user, uint256 amount);
+    /// @dev Emitted when a sale is cancelled
     event CancelSale(uint256 indexed saleId);
+    /// @dev Emitted when a new sale is created
     event CreateSale(
         uint256 indexed saleId,
         uint256 indexed tokenId,
@@ -121,11 +149,15 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         uint256 destinationChainId,
         uint256 priceInUsd
     );
+    /// @dev Emitted when a local purchase is completed
     event Buy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
+    /// @dev Emitted when a cross-chain purchase is completed
     event BuyCrossSale(
         uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied, address indexed sellerAddress
     );
+    /// @dev Emitted when a cross-chain message is received
     event CrossChainReceived(bytes32 messageId, uint64 sourceChainSelector, uint64 destinationChainSelector);
+    /// @dev Emitted when cross-chain data is received and decoded
     event CrossChainDataReceived(
         CrossChainAction action,
         uint256 saleId,
@@ -137,7 +169,9 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         bool isBurn,
         uint256 priceInUsd
     );
+    /// @dev Emitted when a cross-chain message is sent
     event CrossChainSent(bytes32 messageId, uint64 sourceChainSelector, uint64 destinationChainSelector);
+    /// @dev Emitted when cross-chain data is sent
     event CrossChainDataSent(
         CrossChainAction action,
         uint256 saleId,
@@ -189,9 +223,13 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
 
     /**
      * @notice Initializes the DeCupManager contract
-     * @dev Sets up the NFT contract reference and price feed address
+     * @dev Sets up the NFT contract reference, price feed, and cross-chain configurations
      * @param decupAddress The address of the DeCup NFT contract
-     * @param priceFeedAddress The address of the price feed contract (currently unused)
+     * @param priceFeedAddress The address of the Chainlink price feed contract
+     * @param destinationChainIds Array of destination chain IDs to support
+     * @param destinationChainSelectors Array of CCIP chain selectors for each destination chain
+     * @param linkTokens Array of LINK token addresses for each destination chain
+     * @param routerAddress Array of CCIP router addresses for each destination chain
      */
     constructor(
         address decupAddress,
@@ -315,7 +353,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
 
     /**
      * @notice Sends a cross-chain message to the destination chain
-     * @dev Sends a cross-chain message to the destination chain
+     * @dev Handles CCIP message construction and fee payment
      * @param destinationChainId The ID of the destination chain
      * @param messageData The data to send to the destination chain
      */
@@ -396,7 +434,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @dev Emits Buy event on successful payment and CrossChainSent on message dispatch
      * @dev This function is called by the buyer from destination chain to purchase a DeCup NFT on source chain
      * @param saleId The ID of the sale to purchase
-     *
+     * @param buyerBeneficiaryAddress The address that will receive the NFT
      * @param destinationChainId The ID of the source chain where the NFT is located
      * @param isBurn Whether to burn the token after transfer
      */
@@ -448,10 +486,20 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         _sendCrossChainMessage(destinationChainId, messageData);
     }
 
+    /**
+     * @notice Handles incoming CCIP messages (external interface)
+     * @dev This function is called by the CCIP router and validates the sender
+     * @param message The CCIP message containing the cross-chain data
+     */
     function ccipReceive(Client.Any2EVMMessage memory message) external virtual override onlyRouter nonReentrant {
         _ccipReceive(message);
     }
 
+    /**
+     * @notice Internal function to process incoming CCIP messages
+     * @dev Decodes the message data and executes the appropriate action
+     * @param message The CCIP message containing the cross-chain data
+     */
     function _ccipReceive(Client.Any2EVMMessage memory message) internal override {
         (CrossChainMessage memory messageData) = abi.decode(message.data, (CrossChainMessage));
 
@@ -477,7 +525,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 messageData.order.priceInUsd
             );
         } else if (messageData.action == CrossChainAction.CancelSale) {
-            _cancelSale(messageData.order.tokenId, messageData.order.sellerAddress, messageData.order.chainId);
+            _cancelSale(messageData.saleId, messageData.order.sellerAddress, messageData.order.chainId);
         } else if (messageData.action == CrossChainAction.Buy) {
             _buy(
                 messageData.saleId,
@@ -553,13 +601,10 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @dev Buys a DeCup NFT from a sale order
      * @dev The buyer must send sufficient ETH to cover the price of the NFT
      * @param saleId The ID of the sale to buy
+     * @param buyerBeneficiaryAddress The address that will receive the NFT
      * @param isBurn Whether to burn the NFT after transfer
      */
-    function buy(uint256 saleId, /*uint256 priceInUsd*/ address buyerBeneficiaryAddress, bool isBurn)
-        public
-        payable
-        nonReentrant
-    {
+    function buy(uint256 saleId, address buyerBeneficiaryAddress, bool isBurn) public payable nonReentrant {
         Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[block.chainid][saleId];
         // Checks
         if (saleOrder.sellerAddress == address(0)) {
@@ -592,8 +637,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     /**
      * @notice Set the CCIP collateral amount required for cross-chain transfers
      * @dev The collateral amount is required to cover CCIP fees for cross-chain token transfers
-     * @dev This amount is stored in wei as a fixed ETH amount (default: 0.01 ether)
-     * @param amount The collateral amount in wei
+     * @dev This amount is stored in USD with 8 decimals (not wei)
+     * @param amount The collateral amount in USD (with 8 decimals)
      */
     function setCcipCollateral(uint256 amount) public onlyOwner nonReentrant {
         s_ccipCollateralInUsd = amount;
@@ -700,6 +745,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param sellerAddress The address of the seller
      * @param beneficiaryAddress The address that will receive payment
      * @param chainId The ID of the chain where the sale is created
+     * @param priceInUsd The price of the NFT in USD (with 8 decimals)
      */
     function _createSale(
         uint256 tokenId,
@@ -725,7 +771,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @notice Cancels a sale order
      * @dev Deletes the sale order from the mapping chainId => saleId => saleOrder
      * @dev Verifies the caller is the seller of the sale order
-     * @dev Emits a SaleCanceled event (saleId)
+     * @dev Emits a CancelSale event (saleId)
      * @param saleId The ID of the sale to cancel
      * @param sellerAddress The address of the seller canceling the sale
      * @param chainId The chain ID where the sale was created
@@ -740,7 +786,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     }
     /**
      * @notice Adds collateral to the contract
-     * @dev Adds collateral to the contract and emits a Fund event (user, amount)
+     * @dev Adds collateral to the contract and emits a Deposit event (user, amount)
      * @param user The address of the user adding collateral
      * @param amount The amount of collateral to add
      */
@@ -754,6 +800,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @notice Removes collateral from the contract
      * @dev Removes collateral from the contract and emits a Withdraw event (user, amount)
      * @param user The address of the user removing collateral
+     * @param amount The amount of collateral to remove
      */
     function _removeCollateral(address user, uint256 amount) internal {
         s_userToCollateral[user] -= amount;
@@ -790,6 +837,12 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         return nftPriceInETH;
     }
 
+    /**
+     * @notice Converts ETH amount to USD equivalent
+     * @dev Converts ETH price to USD using the price feed
+     * @param priceInETH The ETH amount to convert (in wei)
+     * @return The equivalent USD amount (with 8 decimals)
+     */
     function getPriceInUsd(uint256 priceInETH) public view returns (uint256) {
         uint256 nftPriceInUsd = (priceInETH * getEthUsdPrice()) / 1e18;
         return nftPriceInUsd;
@@ -828,9 +881,10 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
 
     /**
      * @notice Returns the owner of a sale
-     * @dev Returns the owner of a sale
+     * @dev Returns the seller address for a given sale ID and chain ID
      * @param saleId The ID of the sale
-     * @return The owner of the sale
+     * @param chainId The ID of the chain where the sale exists
+     * @return The address of the seller
      */
     function getSaleOwner(uint256 saleId, uint256 chainId) external view returns (address) {
         return s_chainIdToSaleIdToSaleOrder[chainId][saleId].sellerAddress;
