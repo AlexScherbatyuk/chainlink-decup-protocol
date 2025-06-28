@@ -359,15 +359,28 @@ contract DeCupTest is Test {
      */
     function testAddTokenCollateralToExistingCup() public depositSingleAssets {
         // Arrange
+        uint256 amount = 5e6;
         uint256 initialBalance = deCup.getCollateralBalance(0, address(s_mockTokenUsdc));
         uint256 initialUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(address(deCup));
+
+        console.log("initialBalance", initialBalance);
+        console.log("initialUsdcBalance", initialUsdcBalance);
+        // Act
         vm.startPrank(USER);
-        deCup.addTokenCollateralToExistingCup(address(s_mockTokenUsdc), 5e6, 0);
+        IERC20Metadata(s_mockTokenUsdc).approve(address(deCup), amount);
+        deCup.addTokenCollateralToExistingCup(address(s_mockTokenUsdc), amount, 0);
         vm.stopPrank();
         uint256 afterBalance = deCup.getCollateralBalance(0, address(s_mockTokenUsdc));
         uint256 afterUsdcBalance = IERC20Metadata(s_mockTokenUsdc).balanceOf(address(deCup));
-        assertEq(afterBalance, initialBalance + 5e6);
-        assertEq(afterUsdcBalance, initialUsdcBalance);
+
+        console.log("afterBalance", afterBalance);
+        console.log("afterUsdcBalance", afterUsdcBalance);
+        // Assert
+        assertEq(initialBalance, initialUsdcBalance);
+        assertEq(afterBalance, afterUsdcBalance);
+
+        assertEq(initialBalance + amount, afterBalance);
+        assertEq(initialUsdcBalance + amount, afterUsdcBalance);
     }
 
     /**

@@ -233,6 +233,12 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         }
         s_collateralDeposited[tokenId][tokenAddress] += amount;
         emit DepositERC20Token(msg.sender, tokenAddress, amount);
+
+        // Interactions
+        (bool success) = IERC20Metadata(tokenAddress).transferFrom(msg.sender, address(this), amount);
+        if (!success) {
+            revert DeCup__TransferFailed();
+        }
     }
 
     /**
@@ -685,7 +691,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Returns t(t  he metadata URI for a given token ID in base64 JSON format
+     * @notice Returns the metadata URI for a given token ID in base64 JSON format
      * @param _tokenId The ID of the token to get metadata for
      * @return A base64 encoded JSON string containing the token's metadata
      * @dev Overrides the ERC721 tokenURI function
