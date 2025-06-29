@@ -2,12 +2,10 @@
 pragma solidity 0.8.29;
 
 import {IDeCup} from "./interfaces/IDeCup.sol";
-import {OwnerIsCreator} from "@chainlink/contracts/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {IRouterClient} from "@chainlink/contracts/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import {IAny2EVMMessageReceiver} from "@chainlink/contracts/src/v0.8/ccip/interfaces/IAny2EVMMessageReceiver.sol";
 import {Client} from "@chainlink/contracts/src/v0.8/ccip/libraries/Client.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 import {CCIPReceiver} from "@chainlink/contracts/src/v0.8/ccip/applications/CCIPReceiver.sol";
@@ -74,7 +72,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         address beneficiaryAddress;
         uint256 chainId;
         uint256 priceInUsd;
-        address[] tokenAddresses;
+        string[] assetsInfo;
     }
 
     /**
@@ -164,17 +162,6 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     }
 
     /**
-     * @notice Modifier to check if the sender is the CCIP router
-     * @dev Reverts if the sender is not the CCIP router
-     */
-    // modifier onlyRouter() {
-    //     if (msg.sender != address(IRouterClient(s_chainIdToRouterAddress[block.chainid]))) {
-    //         revert DeCupManager__NotRouter();
-    //     }
-    //     _;
-    // }
-
-    /**
      * @notice Modifier to check if the sender is the owner of a specific sale
      * @dev Reverts if the sender is not the seller of the specified sale
      * @param saleId The ID of the sale to check ownership for
@@ -215,11 +202,6 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
             s_chainIdToRouterAddress[destinationChainIds[i]] = routerAddress[i];
         }
 
-        // if (s_chainIdToRouterAddress[block.chainid] == address(0)) {
-        //     revert DeCupManager__InvalidRouter(address(0), block.chainid);
-        // }
-
-        //i_ccipRouter = IRouterClient(s_chainIdToRouterAddress[block.chainid]);
         i_ccipRouter = s_chainIdToRouterAddress[block.chainid];
         i_linkToken = LinkTokenInterface(s_chainIdToLinkAddress[block.chainid]);
         i_currentChainSelector = s_chainIdToChainSelector[block.chainid];
@@ -296,7 +278,11 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         // Effects
         _addCollateral(msg.sender, msg.value);
         s_nft.listForSale(tokenId);
-        address[] memory tokenAddresses = s_nft.getTokenAssetsList(tokenId);
+        // address[] memory tokenAddresses = s_nft.getTokenAssetsList(tokenId);
+        // uint256[] memory tokenAmounts = s_nft.getTokenAssetsAmountsList(tokenId);
+
+        string[] memory assetsInfo = s_nft.getAssetsInfo(tokenId);
+
         // Interactions
         //Call ccip message to execute internalfunction _createSale on destination chain
 
@@ -309,7 +295,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 beneficiaryAddress: beneficiaryAddress,
                 chainId: block.chainid,
                 priceInUsd: priceInUsd,
-                tokenAddresses: tokenAddresses
+                assetsInfo: assetsInfo
             }),
             buyerAddress: address(0),
             isBurn: false,
@@ -491,7 +477,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 messageData.order.beneficiaryAddress,
                 messageData.order.chainId,
                 messageData.order.priceInUsd,
-                messageData.order.tokenAddresses
+                messageData.order.assetsInfo
             );
         } else if (messageData.action == CrossChainAction.CancelSale) {
             _cancelSale(messageData.saleId, messageData.order.sellerAddress, messageData.order.chainId);
@@ -632,14 +618,10 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
             revert DeCupManager__NotOwner();
         }
         // Effects
-        //address sellerAddress = beneficiaryAddress == address(0) ? s_nft.ownerOf(tokenId) : beneficiaryAddress;
+        string[] memory assetsInfo = s_nft.getAssetsInfo(tokenId);
+
         _createSale(
-            tokenId,
-            msg.sender,
-            beneficiaryAddress,
-            block.chainid,
-            s_nft.getTokenPriceInUsd(tokenId),
-            s_nft.getTokenAssetsList(tokenId)
+            tokenId, msg.sender, beneficiaryAddress, block.chainid, s_nft.getTokenPriceInUsd(tokenId), assetsInfo
         );
 
         // Interactions
@@ -729,7 +711,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         address beneficiaryAddress,
         uint256 chainId,
         uint256 priceInUsd,
-        address[] memory tokenAddresses
+        string[] memory assetsInfo
     ) internal {
         uint256 saleId = s_saleCounter;
         Order memory saleOrder = Order({
@@ -738,7 +720,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
             beneficiaryAddress: beneficiaryAddress,
             chainId: chainId,
             priceInUsd: priceInUsd,
-            tokenAddresses: tokenAddresses
+            assetsInfo: assetsInfo
         });
         s_chainIdToSaleIdToSaleOrder[chainId][saleId] = saleOrder;
         s_saleCounter++;
@@ -884,15 +866,6 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      */
     function getCcipCollateralInEth() public view returns (uint256) {
         return getPriceInETH(s_ccipCollateralInUsd);
-    }
-
-    /**
-     * @notice Returns the pay fees in
-     * @dev Returns the pay fees in
-     * @return The pay fees in
-     */
-    function getPayFeesIn() public view returns (PayFeesIn) {
-        return s_payFeesIn;
     }
 
     /**

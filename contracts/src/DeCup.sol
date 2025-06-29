@@ -27,8 +27,6 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     error DeCup__NotAllowedToken();
     error DeCup__TokenAddressesAndPriceFeedAddressesMusBeSameLength();
     error DeCup__TokenAddressesAndAmountsMusBeSameLength();
-    error DeCup__ApprovalFailed();
-    error DeCup__ZeroAddress();
     error DeCup__TokenDoesNotExist();
     error DeCup__AllowedTokenAddressesMustNotBeEmpty();
     error DeCup__PriceFeedAddressesMustNotBeEmpty();
@@ -39,13 +37,17 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     error DeCup__NotOwnerOrManager();
 
     // State variables
-    uint256 private s_tokenCounter;
+    uint256 public s_tokenCounter;
     string private s_svgImageUri;
+    string private s_defaultSymbol;
 
+    uint256 private constant PRECISION_18 = 1e18;
+    uint256 private constant PRECISION_8 = 1e8;
+    uint256 private constant ETH_DECIMALS = 18;
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
-    uint256 private constant PRECISION = 1e18;
+    uint256 private constant PRECISION_MULTIPLIER = 1e10;
 
-    address private s_defaultPriceFeed;
+    address private immutable s_defaultPriceFeed;
 
     mapping(uint256 tokenId => address[] assets) private s_tokenIdToAssets;
     mapping(address token => address priceFeed) private s_tokenToPriceFeed;
@@ -139,8 +141,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Reverts if the token does not exist (no assets associated with it)
      */
     modifier tokenExists(uint256 tokenId) {
-        address[] memory assets = s_tokenIdToAssets[tokenId];
-        if (assets.length == 0) {
+        if (ownerOf(tokenId) == address(0)) {
             revert DeCup__TokenDoesNotExist();
         }
         _;
@@ -158,7 +159,8 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         string memory _baseSvgImageUri,
         address[] memory _tokenAddresses,
         address[] memory _priceFeedAddresses,
-        address _defaultPriceFeed
+        address _defaultPriceFeed,
+        string memory _defaultSymbol
     ) ERC721("DeCup", "DCT") Ownable(msg.sender) {
         if (_tokenAddresses.length == 0) {
             revert DeCup__AllowedTokenAddressesMustNotBeEmpty();
@@ -179,6 +181,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         s_tokenCounter = 0;
         s_svgImageUri = _baseSvgImageUri;
         s_defaultPriceFeed = _defaultPriceFeed;
+        s_defaultSymbol = _defaultSymbol;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -349,7 +352,8 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
 
         _mintAndIncreaseCounter(msg.sender, tokenId);
 
-        for (uint256 i = 0; i < tokenAddresses.length; i++) {
+        uint256 length = tokenAddresses.length;
+        for (uint256 i; i < length;) {
             if (amounts[i] == 0) {
                 revert DeCup__AmountMustBeGreaterThanZero();
             }
@@ -361,6 +365,10 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             (bool success) = IERC20Metadata(tokenAddresses[i]).transferFrom(msg.sender, address(this), amounts[i]);
             if (!success) {
                 revert DeCup__TransferFailed();
+            }
+
+            unchecked {
+                ++i; // Use unchecked increment
             }
         }
     }
@@ -493,14 +501,15 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Funds are transferred to the owner of the NFT, not the caller
      */
     function _withdrawNativeCurrency(uint256 tokenId, uint256 amount) private {
+        address owner = ownerOf(tokenId);
         if (address(this).balance < amount) {
             revert DeCup__InsufficientBalance();
         }
 
         s_collateralDeposited[tokenId][address(0)] = 0;
-        emit WithdrawNativeCurrency(ownerOf(tokenId), amount);
+        emit WithdrawNativeCurrency(owner, amount);
 
-        (bool success,) = address(payable(ownerOf(tokenId))).call{value: amount}("");
+        (bool success,) = address(payable(owner)).call{value: amount}("");
         if (!success) {
             revert DeCup__TransferFailed();
         }
@@ -539,11 +548,16 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         address[] memory assets = s_tokenIdToAssets[tokenId];
         delete s_tokenIdToAssets[tokenId];
 
-        for (uint256 i = 0; i < assets.length; i++) {
+        uint256 length = assets.length;
+        for (uint256 i; i < length;) {
             if (assets[i] == address(0)) {
                 _withdrawNativeCurrency(tokenId, s_collateralDeposited[tokenId][assets[i]]);
             } else {
                 _withdrawSingleToken(tokenId, assets[i], s_collateralDeposited[tokenId][assets[i]]);
+            }
+
+            unchecked {
+                ++i; // Use unchecked increment
             }
         }
     }
@@ -552,23 +566,22 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
                 INTERNAL / PRIVATE VIEW / PURE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /**
-     * @notice Returns the USD value of a given ETH token amount
-     * @param tokenAddress The address of the ETH token
-     * @param amount The amount of ETH tokens
-     * @return The USD value of the given ETH token amount with additional precision
-     * @dev Uses Chainlink price feeds to get real-time token prices
-     * @dev Applies decimals conversion to maintain accuracy in calculations
-     * @dev Multiplies by 10^10 to maintain precision in calculations
-     * @dev Uses fixed 18 decimals for ETH (standard for native currency)
-     * @dev Returns value in USD with 18 decimals of precision
-     * @dev Note: Currently uses hardcoded 18 decimals, could be made dynamic in future versions
-     */
-    function getEthUSDValue(address tokenAddress, uint256 amount) private view returns (uint256) {
-        uint256 ethPrice = getUsdPrice(tokenAddress);
-        uint8 decimals = 18; //Need to make dynamic
-        return (ethPrice * 10 ** 10) * amount / 10 ** uint256(decimals);
-    }
+    // /**
+    //  * @notice Returns the USD value of a given ETH token amount
+    //  * @param tokenAddress The address of the ETH token
+    //  * @param amount The amount of ETH tokens
+    //  * @return The USD value of the given ETH token amount with additional precision
+    //  * @dev Uses Chainlink price feeds to get real-time token prices
+    //  * @dev Applies decimals conversion to maintain accuracy in calculations
+    //  * @dev Multiplies by 10^10 to maintain precision in calculations
+    //  * @dev Uses fixed 18 decimals for ETH (standard for native currency)
+    //  * @dev Returns value in USD with 18 decimals of precision
+    //  * @dev Note: Currently uses hardcoded 18 decimals, could be made dynamic in future versions
+    //  */
+    // function getEthUSDValue(address tokenAddress, uint256 amount) private view returns (uint256) {
+    //     uint256 ethPrice = getUsdPrice(tokenAddress);
+    //     return (ethPrice * PRECISION_MULTIPLIER) * amount / PRECISION_18;
+    // }
 
     /**
      * @notice Returns the base URI for token metadata in base64 JSON format
@@ -607,11 +620,36 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Returns the current token counter
-     * @return The current token counter
+     * @notice Returns the list of assets deposited for a given token ID
+     * @param tokenId The ID of the token to get the assets for
+     * @return The list of assets deposited for the given token ID
      */
-    function getTokenCounter() public view returns (uint256) {
-        return s_tokenCounter;
+    function getAssetsInfo(uint256 tokenId) public view returns (string[] memory) {
+        address[] memory tokenAddresses = s_tokenIdToAssets[tokenId];
+        string[] memory symbols = new string[](tokenAddresses.length);
+
+        for (uint256 i = 0; i < tokenAddresses.length;) {
+            address tokenAddress = tokenAddresses[i]; // Cache array access
+            uint256 amount = s_collateralDeposited[tokenId][tokenAddress];
+
+            if (tokenAddress == address(0)) {
+                symbols[i] = string(abi.encodePacked(s_defaultSymbol, " ", Strings.toString(amount)));
+            } else {
+                uint256 decimals = IERC20Metadata(tokenAddress).decimals(); // Move declaration here
+                symbols[i] = string(
+                    abi.encodePacked(
+                        IERC20Metadata(tokenAddress).symbol(),
+                        " ",
+                        Strings.toString((amount * PRECISION_18) / (10 ** decimals)) // Use 1e18 instead of 10 ** 18
+                    )
+                );
+            }
+
+            unchecked {
+                ++i;
+            } // Use unchecked increment
+        }
+        return symbols;
     }
 
     /**
@@ -634,10 +672,14 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Handles token decimals dynamically using IERC20Metadata interface
      * @dev Returns value in USD with 18 decimals of precision
      */
-    function getERC20UsdValue(address tokenAddress, uint256 amount) public view returns (uint256) {
-        uint256 usdcPrice = getUsdPrice(tokenAddress);
-        uint8 decimals = IERC20Metadata(tokenAddress).decimals();
-        return (usdcPrice * 10 ** 10) * amount / 10 ** uint256(decimals);
+    function getAssetValueInUsd(address tokenAddress, uint256 amount) public view returns (uint256) {
+        uint256 usdcPrice = getUsdPrice(tokenAddress); //1000 0000 0000
+
+        // 50 000 000 000 000 00000
+        // 500 000 000 000 000 000
+        // 500 000 000 000 000 000 000
+        uint256 decimals = tokenAddress == address(0) ? ETH_DECIMALS : IERC20Metadata(tokenAddress).decimals();
+        return (usdcPrice * PRECISION_MULTIPLIER) * amount / 10 ** decimals;
     }
 
     /**
@@ -650,14 +692,14 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         return s_collateralDeposited[tokenId][tokenAddress];
     }
 
-    /**
-     * @notice Returns the list of assets deposited for a given token ID
-     * @param tokenId The ID of the token to get the assets for
-     * @return The list of assets deposited for the given token ID
-     */
-    function getTokenAssetsList(uint256 tokenId) public view returns (address[] memory) {
-        return s_tokenIdToAssets[tokenId];
-    }
+    // /**
+    //  * @notice Returns the list of assets deposited for a given token ID
+    //  * @param tokenId The ID of the token to get the assets for
+    //  * @return The list of assets deposited for the given token ID
+    //  */
+    // function getTokenAssetsList(uint256 tokenId) public view returns (address[] memory) {
+    //     return s_tokenIdToAssets[tokenId];
+    // }
 
     /**
      * @notice Returns the total collateral value (TCL) for a given token ID in USD
@@ -667,12 +709,13 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     function _getTokenIdTCL(uint256 tokenId) internal view returns (uint256) {
         address[] memory assets = s_tokenIdToAssets[tokenId];
         uint256 tcl = 0;
-        for (uint256 i = 0; i < assets.length; i++) {
-            if (assets[i] == address(0)) {
-                tcl += getEthUSDValue(assets[i], s_collateralDeposited[tokenId][assets[i]]);
-            } else {
-                tcl += getERC20UsdValue(assets[i], s_collateralDeposited[tokenId][assets[i]]);
-            }
+        uint256 length = assets.length;
+        for (uint256 i; i < length; i++) {
+            tcl += getAssetValueInUsd(assets[i], s_collateralDeposited[tokenId][assets[i]]);
+
+            // unchecked {
+            //     i++; // Use unchecked increment
+            // }
         }
         return tcl;
     }
@@ -684,99 +727,86 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Converts TCL from 18 decimals to 8 decimals precision
      */
     function getTokenPriceInUsd(uint256 tokenId) public view returns (uint256) {
-        address[] memory assets = s_tokenIdToAssets[tokenId];
-        if (assets.length == 0) {
+        if (ownerOf(tokenId) == address(0)) {
             revert DeCup__TokenDoesNotExist();
         }
 
         uint256 tcl = _getTokenIdTCL(tokenId); //retuns in 18 decimals
 
-        return (tcl * 1e8) / 1e18; //convert to 8 decimals
+        return (tcl * PRECISION_8) / PRECISION_18; //convert to 8 decimals
     }
 
     /**
      * @notice Returns the metadata URI for a given token ID in base64 JSON format
      * @param _tokenId The ID of the token to get metadata for
      * @return A base64 encoded JSON string containing the token's metadata
-     * @dev Overrides the ERC721 tokenURI function
-     * @dev Constructs metadata including name, description, attributes and image
-     * @dev Attributes include USD values of all collateral assets
-     * @dev Uses Base64 encoding for on-chain metadata storage
-     * @dev Calculates total collateral value (TCL) in USD
-     * @dev Includes individual asset values as traits
-     * @dev Example metadata structure:
-     * {
-     *   "tokenId": "1",
-     *   "name": "DeCup #1 $1000",
-     *   "description": "Decentralized Cup of assets",
-     *   "attributes": [
-     *     {"trait_type": "TCL", "value": "1000 USD"},
-     *     {"trait_type": "ETH", "value": "500"},
-     *     {"trait_type": "USDC", "value": "500"}
-     *   ],
-     *   "image": "data:image/svg+xml;base64,..."
-     * }
+     * @dev Optimized version with reduced bytecode size and gas usage
      */
     function tokenURI(uint256 _tokenId) public view override returns (string memory) {
-        string memory imageURI = s_svgImageUri;
         address[] memory assets = s_tokenIdToAssets[_tokenId];
+        uint256 length = assets.length;
 
-        bytes memory attributes;
+        // Pre-calculate TCL and build attributes in single pass
         uint256 tcl;
+        bytes memory attributes;
 
-        for (uint256 i = 0; i < assets.length; i++) {
-            string memory symbol;
-            uint256 amount = s_collateralDeposited[_tokenId][assets[i]];
-            uint256 usdValue;
+        // Cache tokenId string to avoid repeated conversion
+        bytes memory tokenIdStr = bytes(Strings.toString(_tokenId));
 
-            //tcl += getTokenAmountFromUsd(assets[i], amount);
+        for (uint256 i; i < length;) {
+            address asset = assets[i]; // Cache asset address
+            uint256 amount = s_collateralDeposited[_tokenId][asset];
 
-            if (assets[i] == address(0)) {
-                // Native currency (ETH, MATIC, etc.)
-                symbol = "ETH"; // You might want to make this configurable based on chain
-                usdValue = getEthUSDValue(assets[i], amount);
-            } else {
-                // ERC20 token
-                symbol = IERC20Metadata(assets[i]).symbol();
-                usdValue = getERC20UsdValue(assets[i], amount);
-            }
-
+            // Calculate USD value and add to TCL
+            uint256 usdValue = getAssetValueInUsd(asset, amount);
             tcl += usdValue;
 
+            // Get symbol once
+            bytes memory symbol = asset == address(0) ? bytes(s_defaultSymbol) : bytes(IERC20Metadata(asset).symbol());
+
+            // Build attribute JSON more efficiently
             attributes = abi.encodePacked(
                 attributes,
+                i > 0 ? bytes(",") : bytes(""),
                 '{"trait_type":"',
                 symbol,
                 '","value":"',
                 Strings.toString(amount),
-                '"}',
-                i < assets.length - 1 ? "," : ""
+                '"}'
             );
-        }
-        tcl = tcl / 1e18;
 
+            unchecked {
+                ++i;
+            }
+        }
+
+        // Convert TCL to display format
+        tcl = tcl / PRECISION_18;
+        bytes memory tclStr = bytes(Strings.toString(tcl));
+
+        // Build complete JSON in single abi.encodePacked call
         return string(
             abi.encodePacked(
                 _baseURI(),
                 Base64.encode(
-                    bytes(
-                        abi.encodePacked(
-                            '{"tokenId":"',
-                            Strings.toString(_tokenId),
-                            '","name":"',
-                            abi.encodePacked(
-                                name(), "#", Strings.toString(_tokenId), " $", Strings.toString(uint256(tcl))
-                            ),
-                            '","description":"Decentralized Cup of assets", "attributes": [',
-                            '{"trait_type":"TCL","value":"',
-                            Strings.toString(uint256(tcl)),
-                            ' USD"}',
-                            attributes.length > 0 ? "," : "",
-                            attributes,
-                            '],"image":"',
-                            imageURI,
-                            '"}'
-                        )
+                    abi.encodePacked(
+                        '{"tokenId":"',
+                        tokenIdStr,
+                        '","name":"',
+                        name(),
+                        " #",
+                        tokenIdStr,
+                        " $",
+                        tclStr,
+                        '","description":"Decentralized Cup of assets","attributes":[',
+                        '{"trait_type":"TCL","value":"',
+                        tclStr,
+                        ' USD"}',
+                        attributes.length > 0 ? "," : "",
+                        attributes,
+                        '],"image":"',
+                        s_svgImageUri,
+                        '"}'
                     )
                 )
             )

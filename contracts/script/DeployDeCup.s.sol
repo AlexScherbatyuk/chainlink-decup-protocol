@@ -15,7 +15,8 @@ contract DeployDeCup is Script {
             networkConfig.imageURI,
             networkConfig.tokenAddresses,
             networkConfig.priceFeedAddresses,
-            networkConfig.defaultPriceFeed
+            networkConfig.defaultPriceFeed,
+            networkConfig.defaultSymbol
         );
         return (decup, config);
     }
@@ -24,10 +25,11 @@ contract DeployDeCup is Script {
         string memory imageURI,
         address[] memory tokenAddresses,
         address[] memory priceFeedAddresses,
-        address defaultPriceFeed
+        address defaultPriceFeed,
+        string memory defaultSymbol
     ) public returns (DeCup) {
         vm.startBroadcast();
-        DeCup deploy = new DeCup(imageURI, tokenAddresses, priceFeedAddresses, defaultPriceFeed);
+        DeCup deploy = new DeCup(imageURI, tokenAddresses, priceFeedAddresses, defaultPriceFeed, defaultSymbol);
         vm.stopBroadcast();
         return deploy;
     }

@@ -13,6 +13,7 @@ contract HelperConfigDeCup is Script {
         address[] tokenAddresses;
         address[] priceFeedAddresses;
         address defaultPriceFeed;
+        string defaultSymbol;
     }
 
     uint8 public constant DECIMALS = 8;
@@ -52,7 +53,8 @@ contract HelperConfigDeCup is Script {
             imageURI: imageURI,
             priceFeedAddresses: priceFeedAddresses,
             tokenAddresses: tokenAddresses,
-            defaultPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306
+            defaultPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
+            defaultSymbol: "ETH"
         });
     }
 
@@ -71,7 +73,8 @@ contract HelperConfigDeCup is Script {
             imageURI: imageURI,
             priceFeedAddresses: priceFeedAddresses,
             tokenAddresses: tokenAddresses,
-            defaultPriceFeed: 0x5498BB86BC934c8D34FDA08E81D444153d0D06aD
+            defaultPriceFeed: 0x5498BB86BC934c8D34FDA08E81D444153d0D06aD,
+            defaultSymbol: "AVAX"
         });
     }
 
@@ -100,7 +103,8 @@ contract HelperConfigDeCup is Script {
             imageURI: imageURI,
             priceFeedAddresses: priceFeedAddresses,
             tokenAddresses: tokenAddresses,
-            defaultPriceFeed: address(ethUsdPriceFeed)
+            defaultPriceFeed: address(ethUsdPriceFeed),
+            defaultSymbol: "ETH"
         });
     }
 

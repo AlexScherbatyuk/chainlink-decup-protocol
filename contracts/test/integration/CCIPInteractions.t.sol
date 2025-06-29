@@ -75,7 +75,8 @@ contract CCIPInteractionsTest is Test {
             ethSepoliaConfigDeCup.imageURI,
             ethSepoliaConfigDeCup.tokenAddresses,
             ethSepoliaConfigDeCup.priceFeedAddresses,
-            ethSepoliaConfigDeCup.defaultPriceFeed
+            ethSepoliaConfigDeCup.defaultPriceFeed,
+            ethSepoliaConfigDeCup.defaultSymbol
         );
 
         ethSepoliaDeCupManager = new DeCupManager(
@@ -112,7 +113,8 @@ contract CCIPInteractionsTest is Test {
             avlFujiConfigDeCup.imageURI,
             avlFujiConfigDeCup.tokenAddresses,
             avlFujiConfigDeCup.priceFeedAddresses,
-            avlFujiConfigDeCup.defaultPriceFeed
+            avlFujiConfigDeCup.defaultPriceFeed,
+            avlFujiConfigDeCup.defaultSymbol
         );
 
         avlFujiDeCupManager = new DeCupManager(

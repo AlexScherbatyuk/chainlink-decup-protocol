@@ -357,12 +357,6 @@ contract DeCupManagerTest is Test {
         }
     }
 
-    function testGetPayFeesIn() public view {
-        DeCupManager.PayFeesIn payFeesIn = decupManager.getPayFeesIn();
-        // Should be Native (0) by default
-        assertTrue(uint256(payFeesIn) <= 1, "PayFeesIn should be valid enum value");
-    }
-
     function testGetPriceFeedAddress() public view {
         address priceFeed = decupManager.getPriceFeedAddress();
         assertTrue(priceFeed != address(0), "Price feed address should not be zero");
