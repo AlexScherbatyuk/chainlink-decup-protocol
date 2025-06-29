@@ -66,6 +66,67 @@ const depositNative = async (amount: bigint, contractAddress: string, walletAddr
 }
 
 /**
+ * @notice Adds a native token collateral to an existing cup
+ * @param amount The amount of tokens to deposit
+ * @param contractAddress The address of the DeCup contract
+ * @param walletAddress The address of the wallet to deposit the tokens from
+ * @param tokenId The ID of the token to add the collateral to
+ * @returns { success: boolean, tokenId?: bigint }
+ */
+const addNativeCollateralToExistingCup = async (amount: bigint, contractAddress: string, walletAddress?: string, tokenId?: bigint): Promise<{ success: boolean; tokenId?: bigint }> => {
+
+    let success = false
+    try {
+        const tx = await sendTransaction(config, {
+            to: contractAddress as `0x${string}`,
+            value: amount,
+        })
+
+        if (tx) {
+            // Wait for transaction to be mined
+            const receipt = await waitForTransactionReceipt(config, {
+                hash: tx,
+            })
+
+            // Parse logs for Transfer event
+            const logs = parseEventLogs({
+                abi: DeCupABI.abi,
+                logs: receipt.logs,
+            });
+
+            // Parse events to find the NFT Transfer event (mint)
+            const transferEvent = logs.find(
+                (log: any) =>
+                    log.eventName === 'DepositNativeCurrency' &&
+                    log.args?.from?.toLowerCase() === walletAddress?.toLowerCase() &&
+                    log.args?.to?.toLowerCase() === contractAddress?.toLowerCase()
+            );
+
+            if ((transferEvent as any)?.args?.tokenId !== undefined) {
+                const tokenId = (transferEvent as any).args.tokenId as bigint;
+                console.log('Add collateral to existing cup tokenId:', tokenId.toString());
+                return {
+                    success: true,
+                    tokenId,
+                    // transactionHash: txHash,
+                };
+            } else {
+                console.warn('Transfer event found, but tokenId not parsed.');
+                return {
+                    success: true, // Transaction succeeded, but no tokenId
+                    //transactionHash: txHash,
+                };
+            }
+        }
+    } catch (error) {
+        console.error("Error depositing native token:", error)
+        throw error
+    }
+
+    return { success, tokenId }
+}
+
+/**
  * @notice Deposits an ERC20 token into the DeCup contract and mints an NFT
  * @param amount The amount of tokens to deposit
  * @param tokenAddress The address of the ERC20 token to deposit
@@ -166,6 +227,109 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
 
     return { success, tokenId }
 }
+
+/**
+ * @notice Adds a token collateral to an existing cup
+ * @param amount The amount of tokens to deposit
+ * @param tokenAddress The address of the ERC20 token to deposit
+ * @param contractAddress The address of the DeCup contract
+ * @param walletAddress The address of the wallet to deposit the tokens from
+ * @returns { success: boolean, tokenId?: bigint }
+ */
+const addTokenCollateralToExistingCup = async (amount: bigint, tokenAddress: string, contractAddress: string, walletAddress?: string, tokenId?: bigint): Promise<{ success: boolean; tokenId?: bigint }> => {
+
+    let success = false
+    //let tokenId: bigint | undefined
+
+    console.log("amount", amount)
+    console.log("tokenAddress", tokenAddress)
+    console.log("spenderAddress", contractAddress)
+    console.log("walletAddress", walletAddress)
+
+    try {
+
+        const tokenDecimals = await readContract(config, {
+            address: tokenAddress as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'decimals',
+        })
+        console.log("tokenDecimals", tokenDecimals)
+
+        const allowance = await readContract(config, {
+            address: tokenAddress as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'allowance',
+            args: [walletAddress as `0x${string}`, contractAddress as `0x${string}`],
+        })
+
+        console.log("allowance", allowance)
+        //10 000 000 000 000 000
+        //10 000 000 000 000 000 000 000
+        // Convert amount to token's smallest unit (account for token decimals)
+        const amountInTokenDecimals = (amount * BigInt(10 ** tokenDecimals)) / BigInt(1e18)
+
+        if (allowance < amountInTokenDecimals) {
+            await writeContract(config, {
+                address: tokenAddress as `0x${string}`,
+                abi: erc20Abi,
+                functionName: 'approve',
+                args: [contractAddress as `0x${string}`, amountInTokenDecimals],
+            })
+        }
+
+        console.log("amountInTokenDecimals", amountInTokenDecimals)
+
+        // This would typically be a contract call, not a direct transaction
+        const tx = await writeContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupABI.abi,
+            functionName: 'addTokenCollateralToExistingCup', // Or whatever the deposit function is called
+            args: [tokenAddress, amountInTokenDecimals, tokenId],
+        })
+
+        if (tx) {
+            const receipt = await waitForTransactionReceipt(config, {
+                hash: tx,
+            })
+
+            // Parse logs for Transfer event
+            const logs = parseEventLogs({
+                abi: DeCupABI.abi,
+                logs: receipt.logs,
+            });
+
+            // Parse events to find the NFT Transfer event (mint)
+            const transferEvent = logs.find(
+                (log: any) =>
+                    log.eventName === 'DepositERC20Token' &&
+                    log.args?.from?.toLowerCase() === walletAddress?.toLowerCase() &&
+                    log.args?.to?.toLowerCase() === contractAddress?.toLowerCase()
+            );
+
+            if ((transferEvent as any)?.args?.tokenId !== undefined) {
+                const tokenId = (transferEvent as any).args.tokenId as bigint;
+                console.log('Add ERC20 collateral to existing cup tokenId:', tokenId.toString());
+                return {
+                    success: true,
+                    tokenId,
+                    // transactionHash: txHash,
+                };
+            } else {
+                console.warn('Transfer event found, but tokenId not parsed.');
+                return {
+                    success: true, // Transaction succeeded, but no tokenId
+                    //transactionHash: txHash,
+                };
+            }
+        }
+    } catch (error) {
+        console.error("Error depositing ERC20 token:", error)
+        throw error
+    }
+
+    return { success, tokenId }
+}
+
 
 const withdrawNativeDeCupManager = async (amount: bigint, contractAddress: string): Promise<boolean> => {
     let success = false
@@ -339,6 +503,13 @@ const cancelSale = async (saleId: bigint, contractAddress: string): Promise<{ su
     return { success, saleId }
 }
 
+/**
+ * @notice Burns a DeCup NFT
+ * @param tokenId The ID of the token to burn
+ * @param contractAddress The address of the DeCup contract
+ * @param walletAddress The address of the wallet to burn the token from
+ * @returns { success: boolean, tokenId?: bigint }
+ */
 const burn = async (tokenId: bigint, contractAddress: string, walletAddress: string): Promise<{ success: boolean; tokenId?: bigint }> => {
 
     let success = false
@@ -371,9 +542,9 @@ const burn = async (tokenId: bigint, contractAddress: string, walletAddress: str
                     log.args?.to === '0x0000000000000000000000000000000000000000'
             );
 
-            if ((transferEvent as any)?.args?.saleId !== undefined) {
-                const saleId = (transferEvent as any).args.saleId as bigint;
-                console.log('Burn tokenId:', saleId.toString());
+            if ((transferEvent as any)?.args?.tokenId !== undefined) {
+                const tokenId = (transferEvent as any).args.tokenId as bigint;
+                console.log('Burn tokenId:', tokenId.toString());
                 return {
                     success: true,
                     tokenId,
@@ -393,6 +564,113 @@ const burn = async (tokenId: bigint, contractAddress: string, walletAddress: str
     }
 
     return { success, tokenId }
+}
+
+/**
+ * @notice Validates if a sale order exists before attempting to buy
+ * @param saleId The ID of the sale to check
+ * @param contractAddress The address of the DeCupManager contract
+ * @returns { exists: boolean, saleOrder?: any, error?: string }
+ */
+const validateSaleOrder = async (saleId: bigint, contractAddress: string): Promise<{ exists: boolean; saleOrder?: any; error?: string }> => {
+    try {
+        // Get current chain ID (assuming Sepolia for now)
+        const chainId = 11155111; // Sepolia testnet
+
+        const saleOrder = await readContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupManagerABI.abi,
+            functionName: 'getSaleOrder',
+            args: [chainId, Number(saleId)],
+        })
+
+        // Check if sale exists (sellerAddress is not zero address)
+        const exists = saleOrder && (saleOrder as any).sellerAddress !== '0x0000000000000000000000000000000000000000';
+
+        if (!exists) {
+            return {
+                exists: false,
+                error: `Sale ID ${saleId.toString()} does not exist on chain ${chainId}. Please check available sales using getSaleOrderList().`
+            };
+        }
+
+        return {
+            exists: true,
+            saleOrder: saleOrder
+        };
+    } catch (error) {
+        console.error("Error validating sale order:", error);
+        return {
+            exists: false,
+            error: `Failed to validate sale order: ${error}`
+        };
+    }
+}
+
+const buy = async (saleId: bigint, contractAddress: string, walletAddress: string, isBurn: boolean, amount: bigint): Promise<{ success: boolean; saleId?: bigint }> => {
+    console.log("buy", saleId, contractAddress, walletAddress, isBurn, amount)
+
+    // Validate sale order exists before attempting to buy
+    const validation = await validateSaleOrder(saleId, contractAddress);
+    if (!validation.exists) {
+        throw new Error(validation.error || `Sale ID ${saleId.toString()} does not exist`);
+    }
+
+    console.log("Sale order validation passed:", validation.saleOrder);
+
+    let success = false
+
+    try {
+        const tx = await writeContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupManagerABI.abi,
+            functionName: 'buy',
+            value: amount,
+            args: [saleId, walletAddress, isBurn],
+        })
+
+        if (tx) {
+            const receipt = await waitForTransactionReceipt(config, {
+                hash: tx,
+            })
+
+            // Parse logs for Transfer event
+            const logs = parseEventLogs({
+                abi: DeCupManagerABI.abi,
+                logs: receipt.logs,
+            });
+
+            // Parse events to find the NFT Transfer event (mint)
+            const transferEvent = logs.find(
+                (log: any) =>
+                    log.eventName === 'Buy' &&
+                    log.args?.saleId === saleId &&
+                    log.args?.buyerAddress?.toLowerCase() === walletAddress?.toLowerCase() &&
+                    log.args?.amountPaied === amount
+            );
+
+            if ((transferEvent as any)?.args?.saleId !== undefined) {
+                const saleId = (transferEvent as any).args.saleId as bigint;
+                console.log('Bought tokenId:', saleId.toString());
+                return {
+                    success: true,
+                    saleId,
+                    // transactionHash: txHash,
+                };
+            } else {
+                console.warn('Transfer event found, but tokenId not parsed.');
+                return {
+                    success: true, // Transaction succeeded, but no tokenId
+                    //transactionHash: txHash,
+                };
+            }
+        }
+    } catch (error) {
+        console.error("Error transfering NFT and removing from sale:", error)
+        throw error
+    }
+
+    return { success, saleId }
 }
 
 /**
@@ -424,6 +702,38 @@ const getTokenPriceInUsd = async (tokenId: bigint, contractAddress: string): Pro
     }
 
     return { success, price }
+}
+
+/**
+ * @notice Gets the collateral balance of a token
+ * @param tokenId The ID of the token
+ * @param contractAddress The address of the DeCup contract
+ * @param tokenAddress The address of the token to get the collateral balance of
+ * @returns { success: boolean, balance: number }
+ */
+const getCollateralBalance = async (tokenId: bigint, contractAddress: string, tokenAddress: string): Promise<{ success: boolean; balance: number }> => {
+    let success = false
+    let balance = 0
+
+    try {
+        const collateralBalance = await readContract(config, {
+            address: contractAddress as `0x${string}`,
+            abi: DeCupABI.abi,
+            functionName: 'getCollateralBalance',
+            args: [tokenId, tokenAddress],
+        })
+
+        if (collateralBalance) {
+            success = true
+            balance = collateralBalance as number
+        }
+    } catch (error) {
+        console.error("Error getting token collateral balance:", error)
+        throw error
+    }
+
+    return { success, balance }
+
 }
 
 /**
@@ -660,6 +970,11 @@ const getSaleOrderList = async (contractAddress: string): Promise<{ success: boo
     }
 }
 
+/**
+ * @notice Gets the list of canceled sale orders
+ * @param contractAddress The address of the DeCupManager contract
+ * @returns { success: boolean, canceldOrders: any[] }
+ */
 const getCanceledSaleOrderList = async (contractAddress: string): Promise<{ success: boolean; canceldOrders: any[] }> => {
     try {
         const publicClient = getPublicClient(config);
@@ -746,6 +1061,12 @@ const getCanceledSaleOrderList = async (contractAddress: string): Promise<{ succ
     }
 }
 
+/**
+ * @notice Gets the collateral balance of a token in ETH
+ * @param saleId The ID of the sale
+ * @param contractAddress The address of the DeCupManager contract
+ * @returns { success: boolean, collateralEth: number }
+ */
 const getCcipCollateralInEth = async (saleId: bigint, contractAddress: string): Promise<{ success: boolean; collateralEth: number }> => {
 
     let success = false
@@ -771,6 +1092,11 @@ const getCcipCollateralInEth = async (saleId: bigint, contractAddress: string): 
     return { success, collateralEth }
 }
 
+/**
+ * @notice Gets the collateral balance of a token in USD
+ * @param contractAddress The address of the DeCup contract
+ * @returns { success: boolean, collateralUsd: number }
+ */
 const getCcipCollateralInUsd = async (contractAddress: string): Promise<{ success: boolean; collateralUsd: number }> => {
 
     let success = false
@@ -905,5 +1231,10 @@ export {
     getIsListedForSale,
     getSaleOrder,
     getCanceledSaleOrderList,
-    burn
+    burn,
+    addTokenCollateralToExistingCup,
+    addNativeCollateralToExistingCup,
+    getCollateralBalance,
+    buy,
+    validateSaleOrder
 }

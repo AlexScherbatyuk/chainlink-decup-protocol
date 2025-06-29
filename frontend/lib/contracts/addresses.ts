@@ -1,7 +1,7 @@
 const getContractAddresses = {
     11155111: {
-        DeCup: "0xCe14010629cD021478D52Fb6873574BED636B147",
-        DeCupManager: "0x1fF750FB68984B1cd41fA5dA74A7Af35EC667cFB",
+        DeCup: "0x330595210AaC5418F1031Aa75dEa1bcE0F50572E",
+        DeCupManager: "0x83c38BdEb613E0573A4591c9DF82cb75fc01Aae0",
     },
     43113: {
         DeCup: "0x0000000000000000000000000000000000000000", // Not deployed yet
