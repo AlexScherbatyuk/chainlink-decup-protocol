@@ -168,7 +168,53 @@ contract CCIPInteractionsTest is Test {
                      MINT ON SEPOLIA & SALE ON FUJI
     //////////////////////////////////////////////////////////////*/
 
-    function testMintDeCupOnSepoliaAndListForSaleOnFuji() public {
+    function testMintDeCupOnSepoliaAndListForSaleOnFujiAndCancelOnSepolia() public {
+        //uint256 priceInUsd = 2000;
+        // 1. On Ethereum Sepolia, mintin DeCup NFT
+        vm.selectFork(ethSepoliaFork);
+        assertEq(vm.activeFork(), ethSepoliaFork);
+
+        // 1.1 Mint DeCup NFT
+        vm.startPrank(seller);
+        console.log("seller address on sepolia", address(seller));
+        (bool success,) = address(ethSepoliaDeCup).call{value: 1 ether}("");
+        assertTrue(success);
+
+        decupTCL = ethSepoliaDeCup.getTokenPriceInUsd(0);
+        uint256 minCollateral = ethSepoliaDeCupManager.getCcipCollateralInEth();
+        console.log("minCollateral", minCollateral);
+        uint256 ethPrice = ethSepoliaDeCupManager.getEthUsdPrice();
+        console.log("ethPrice", ethPrice);
+        console.log("decupTCL", decupTCL);
+
+        // 1.2 List DeCup NFT for sale on Avalanche Fuji
+        ethSepoliaDeCupManager.createCrossSale{value: minCollateral}(0, seller, FUJI_CHAIN_ID, decupTCL);
+        uint256 sellerDeCupManagerBalanceAfterListing = ethSepoliaDeCupManager.balanceOf(seller);
+        uint256 sellerBalanceAfterListing = address(seller).balance;
+        console.log("sellerBalanceAfterListing", sellerBalanceAfterListing);
+        console.log("sellerDeCupManagerBalanceAfterListing", sellerDeCupManagerBalanceAfterListing);
+        vm.stopPrank();
+
+        // 2.1 Verify the sale is created
+        // 2.1.1 Switch to Avalanche Fuji
+        ccipLocalSimulatorFork.switchChainAndRouteMessage(avlFujiFork);
+        assertEq(vm.activeFork(), avlFujiFork);
+
+        assert(avlFujiDeCupManager.getSaleCounter() > 0);
+        assertEq(avlFujiDeCupManager.getSaleOwner(0, SEPOLIA_CHAIN_ID), seller);
+
+        // 2.2 Cancel the sale from Ethereum Sepolia on Avalanche Fuji
+        ccipLocalSimulatorFork.switchChainAndRouteMessage(ethSepoliaFork);
+        assertEq(vm.activeFork(), ethSepoliaFork);
+
+        console.log("decup owner of a token", ethSepoliaDeCup.ownerOf(0));
+
+        vm.startPrank(seller);
+        ethSepoliaDeCupManager.cancelCrossSale{value: minCollateral}(FUJI_CHAIN_ID, 0);
+        vm.stopPrank();
+    }
+
+    function testMintDeCupOnSepoliaAndListForSaleOnFujiAndBuyOnFuji() public {
         //uint256 priceInUsd = 2000;
         // 1. On Ethereum Sepolia, mintin DeCup NFT
         vm.selectFork(ethSepoliaFork);

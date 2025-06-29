@@ -204,6 +204,16 @@ contract DeCupManagerTest is Test {
         decupManager.cancelSale(saleId);
     }
 
+    function testCancelExistingSaleByTokenId() public createSale(user1) {
+        uint256 tokenId = decupManager.getSaleOrder(block.chainid, 0).tokenId;
+
+        vm.expectEmit(true, true, false, true);
+        emit CancelSale(0);
+
+        vm.prank(user1);
+        decupManager.cancelSale(tokenId);
+    }
+
     function testCancelSaleRevertsWithNonExistentSale() public {
         uint256 nonexistentSaleId = 999;
 
@@ -216,7 +226,7 @@ contract DeCupManagerTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(DeCupManager.DeCupManager__InsufficientETH.selector);
-        decupManager.cancelCrossSale{value: insufficientAmount}(0, TEST_NETWORK_ID, TEST_TOKEN_ID);
+        decupManager.cancelCrossSale{value: insufficientAmount}(TEST_NETWORK_ID, TEST_TOKEN_ID);
     }
 
     function testCancelCrossSaleRevertsIfTokenNotListed() public {
@@ -224,7 +234,7 @@ contract DeCupManagerTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(DeCupManager.DeCupManager__TokenNotListedForSale.selector);
-        decupManager.cancelCrossSale{value: sufficientAmount}(0, TEST_NETWORK_ID, TEST_TOKEN_ID);
+        decupManager.cancelCrossSale{value: sufficientAmount}(TEST_NETWORK_ID, TEST_TOKEN_ID);
     }
 
     /*//////////////////////////////////////////////////////////////

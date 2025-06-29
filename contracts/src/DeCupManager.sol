@@ -106,6 +106,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     mapping(uint256 chainId => address linkAddress) private s_chainIdToLinkAddress;
     mapping(uint256 chainId => address receiverAddress) private s_chainIdToReceiverAddress;
     mapping(uint256 chainId => address routerAddress) private s_chainIdToRouterAddress;
+    mapping(uint256 chainId => mapping(uint256 tokenId => uint256 saleId)) private s_chainIdToTokenIdToSaleId;
 
     // Events
     event Deposit(address indexed user, uint256 amount);
@@ -278,9 +279,6 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         // Effects
         _addCollateral(msg.sender, msg.value);
         s_nft.listForSale(tokenId);
-        // address[] memory tokenAddresses = s_nft.getTokenAssetsList(tokenId);
-        // uint256[] memory tokenAmounts = s_nft.getTokenAssetsAmountsList(tokenId);
-
         string[] memory assetsInfo = s_nft.getAssetsInfo(tokenId);
 
         // Interactions
@@ -344,17 +342,14 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     /**
      * @notice Cancels a cross-chain sale order
      * @dev The collateral amount is required to cover CCIP fees for cross-chain token transfers
-     * @dev Actual nft token is minted on the same chain as the manager contract I interact with
-     * @param saleId The ID of the sale to cancel
+     * @dev Actual NFT token is minted on the same chain as the manager contract being interacted with
+     * @dev Removes the token from sale on both chains and sends a cross-chain message to cancel the sale
      * @param destinationChainId The ID of the chain where the sale exists
-     * @param tokenId The ID of the token being sold
+     * @param tokenId The ID of the token to remove from sale
      */
-    function cancelCrossSale(uint256 saleId, uint256 destinationChainId, uint256 tokenId)
-        external
-        payable
-        nonReentrant
-    {
+    function cancelCrossSale(uint256 destinationChainId, uint256 tokenId) external payable nonReentrant {
         uint256 ccipCollateralInEth = getPriceInETH(s_ccipCollateralInUsd);
+
         if (msg.value < ccipCollateralInEth) {
             revert DeCupManager__InsufficientETH();
         }
@@ -364,13 +359,20 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         }
 
         _addCollateral(msg.sender, msg.value);
+
         s_nft.removeFromSale(tokenId);
         // Call ccip message to execute internal function _cancelSale on destination chain
-        Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[block.chainid][saleId];
         CrossChainMessage memory messageData = CrossChainMessage({
             action: CrossChainAction.CancelSale,
-            saleId: saleId,
-            order: saleOrder,
+            saleId: 0,
+            order: Order({
+                tokenId: tokenId,
+                sellerAddress: msg.sender,
+                beneficiaryAddress: msg.sender,
+                chainId: destinationChainId,
+                priceInUsd: 0,
+                assetsInfo: new string[](0)
+            }),
             buyerAddress: address(0),
             isBurn: false,
             priceInUsd: 0
@@ -413,6 +415,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         _addCollateral(saleOrder.beneficiaryAddress, sallersPayment);
         _addCollateral(msg.sender, buyersCollateral);
         uint256 priceInUsd = getPriceInUsd(msg.value);
+        delete s_chainIdToSaleIdToSaleOrder[destinationChainId][saleId];
+        delete s_chainIdToTokenIdToSaleId[destinationChainId][saleOrder.tokenId];
 
         // Interactions
         // Call internal ccip function to transfer token to buyer
@@ -480,7 +484,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
                 messageData.order.assetsInfo
             );
         } else if (messageData.action == CrossChainAction.CancelSale) {
-            _cancelSale(messageData.saleId, messageData.order.sellerAddress, messageData.order.chainId);
+            _cancelSale(messageData.order.tokenId, messageData.order.sellerAddress, messageData.order.chainId);
         } else if (messageData.action == CrossChainAction.Buy) {
             _buy(
                 messageData.saleId,
@@ -632,10 +636,11 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @notice Cancels an existing sale order
      * @dev Removes the seller address mapping for the given sale ID
      * @dev Only the seller or contract owner can cancel orders (access control should be added)
-     * @param saleId The ID of the sale to cancel
+     * @param tokenId The ID of the token to cancel the sale for
      */
-    function cancelSale(uint256 saleId) public nonReentrant {
+    function cancelSale(uint256 tokenId) public nonReentrant {
         // Checks
+        uint256 saleId = s_chainIdToTokenIdToSaleId[block.chainid][tokenId];
         Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[block.chainid][saleId];
         if (saleOrder.sellerAddress == address(0)) {
             revert DeCupManager__SaleNotFound();
@@ -646,7 +651,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         }
 
         // Effects
-        _cancelSale(saleId, msg.sender, block.chainid);
+        _cancelSale(tokenId, msg.sender, block.chainid);
 
         // Interactionss
         s_nft.removeFromSale(saleOrder.tokenId);
@@ -675,12 +680,17 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         //uint256 priceInUsd,
         bool isBurn
     ) internal returns (uint256, bool) {
+        // Checks
         bool success = false;
-
         if (s_nft.ownerOf(tokenId) != sellerAddress) {
             revert DeCupManager__NotTokenOwner();
         }
 
+        // Effects
+        delete s_chainIdToSaleIdToSaleOrder[block.chainid][saleId];
+        delete s_chainIdToTokenIdToSaleId[block.chainid][tokenId];
+
+        // Interactions
         if (isBurn) {
             (success) = s_nft.transferAndBurn(tokenId, buyerAddress);
             if (!success) {
@@ -723,6 +733,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
             assetsInfo: assetsInfo
         });
         s_chainIdToSaleIdToSaleOrder[chainId][saleId] = saleOrder;
+        s_chainIdToTokenIdToSaleId[chainId][tokenId] = saleId;
         s_saleCounter++;
         emit CreateSale(saleId, tokenId, sellerAddress, block.chainid, chainId, priceInUsd);
     }
@@ -732,16 +743,18 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @dev Deletes the sale order from the mapping chainId => saleId => saleOrder
      * @dev Verifies the caller is the seller of the sale order
      * @dev Emits a CancelSale event (saleId)
-     * @param saleId The ID of the sale to cancel
+     * @param tokenId The ID of the token to cancel the sale for
      * @param sellerAddress The address of the seller canceling the sale
      * @param chainId The chain ID where the sale was created
      */
-    function _cancelSale(uint256 saleId, address sellerAddress, uint256 chainId) internal {
+    function _cancelSale(uint256 tokenId, address sellerAddress, uint256 chainId) internal {
+        uint256 saleId = s_chainIdToTokenIdToSaleId[chainId][tokenId];
         Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[chainId][saleId];
         if (saleOrder.sellerAddress != sellerAddress) {
             revert DeCupManager__NotOwner();
         }
         delete s_chainIdToSaleIdToSaleOrder[chainId][saleId];
+        delete s_chainIdToTokenIdToSaleId[chainId][tokenId];
         emit CancelSale(saleId);
     }
     /**
@@ -770,6 +783,17 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                 EXTERNAL / PUBLIC VIEW / PURE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Returns the sale ID for a given token on a specific chain
+     * @dev Retrieves the sale ID from the mapping s_chainIdToTokenIdToSaleId
+     * @param chainId The ID of the chain where the token is listed
+     * @param tokenId The ID of the token to look up
+     * @return The sale ID associated with the token, or 0 if not listed
+     */
+    function getSaleIdByTokenId(uint256 chainId, uint256 tokenId) public view returns (uint256) {
+        return s_chainIdToTokenIdToSaleId[chainId][tokenId];
+    }
 
     /**
      * @notice Returns the current USD to ETH conversion rate

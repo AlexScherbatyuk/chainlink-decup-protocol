@@ -37,7 +37,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     error DeCup__NotOwnerOrManager();
 
     // State variables
-    uint256 public s_tokenCounter;
+    uint256 private s_tokenCounter;
     string private s_svgImageUri;
     string private s_defaultSymbol;
 
@@ -692,15 +692,6 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         return s_collateralDeposited[tokenId][tokenAddress];
     }
 
-    // /**
-    //  * @notice Returns the list of assets deposited for a given token ID
-    //  * @param tokenId The ID of the token to get the assets for
-    //  * @return The list of assets deposited for the given token ID
-    //  */
-    // function getTokenAssetsList(uint256 tokenId) public view returns (address[] memory) {
-    //     return s_tokenIdToAssets[tokenId];
-    // }
-
     /**
      * @notice Returns the total collateral value (TCL) for a given token ID in USD
      * @param tokenId The ID of the token to get the TCL for
@@ -734,6 +725,14 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         uint256 tcl = _getTokenIdTCL(tokenId); //retuns in 18 decimals
 
         return (tcl * PRECISION_8) / PRECISION_18; //convert to 8 decimals
+    }
+
+    /**
+     * @notice Returns the token counter
+     * @return The token counter
+     */
+    function getTokenCounter() public view returns (uint256) {
+        return s_tokenCounter;
     }
 
     /**
