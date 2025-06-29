@@ -11,6 +11,8 @@ import {MockToken} from "../mocks/MockToken.sol";
 import {FailingMockToken} from "../mocks/MockToken.sol";
 
 contract DeCupTest is Test {
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+
     DeCup public deCup;
     HelperConfigDeCup public s_config;
     HelperConfigDeCup.NetworkConfig public s_networkConfig;
@@ -259,6 +261,22 @@ contract DeCupTest is Test {
         deCup.addNativeCollateralToExistingCup{value: 1 ether}(0);
         vm.stopPrank();
         assertEq(address(deCup).balance, initialBalance + 1 ether);
+    }
+
+    /**
+     * @notice Tests that native currency can be added to an existing cup
+     * @dev Verifies that the contract can receive ETH and updates its balance correctly
+     */
+    function testAddNativeCollateralToExistingCupAndBurn() public depositSingleAssets {
+        // Arrange
+        uint256 initialBalance = address(deCup).balance;
+        vm.startPrank(USER);
+        deCup.addNativeCollateralToExistingCup{value: 1 ether}(0);
+        vm.stopPrank();
+        assertEq(address(deCup).balance, initialBalance + 1 ether);
+
+        vm.prank(USER);
+        deCup.burn(0);
     }
 
     /**

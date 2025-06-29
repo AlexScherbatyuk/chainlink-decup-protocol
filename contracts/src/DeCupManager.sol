@@ -112,6 +112,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     event Deposit(address indexed user, uint256 amount);
     event Withdraw(address indexed user, uint256 amount);
     event CancelSale(uint256 indexed saleId);
+    event CancelCrossSale(uint256 indexed tokenId);
     event CreateSale(
         uint256 indexed saleId,
         uint256 indexed tokenId,
@@ -120,6 +121,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         uint256 destinationChainId,
         uint256 priceInUsd
     );
+    event SaleDeleted(uint256 indexed saleId, uint256 indexed tokenId);
     event Buy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
     event BuyCrossSale(
         uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied, address indexed sellerAddress
@@ -358,6 +360,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
             revert DeCupManager__TokenNotListedForSale();
         }
 
+        emit CancelCrossSale(tokenId);
+        emit SaleDeleted(0, tokenId);
         _addCollateral(msg.sender, msg.value);
 
         s_nft.removeFromSale(tokenId);
@@ -409,6 +413,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         }
 
         emit BuyCrossSale(saleId, msg.sender, msg.value, saleOrder.beneficiaryAddress);
+        emit SaleDeleted(saleId, saleOrder.tokenId);
 
         uint256 sallersPayment = msg.value - ccipCollateralInEth;
         uint256 buyersCollateral = ccipCollateralInEth;
@@ -584,6 +589,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         }
         // Effects
         emit Buy(saleId, msg.sender, priceInETH);
+        emit SaleDeleted(saleId, saleOrder.tokenId);
         _addCollateral(saleOrder.beneficiaryAddress, priceInETH);
 
         // Interactions
@@ -756,6 +762,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         delete s_chainIdToSaleIdToSaleOrder[chainId][saleId];
         delete s_chainIdToTokenIdToSaleId[chainId][tokenId];
         emit CancelSale(saleId);
+        emit SaleDeleted(saleId, tokenId);
     }
     /**
      * @notice Adds collateral to the contract
