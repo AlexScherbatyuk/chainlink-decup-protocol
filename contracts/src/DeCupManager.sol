@@ -121,6 +121,13 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         uint256 destinationChainId,
         uint256 priceInUsd
     );
+    event CreateCrossSale(
+        uint256 indexed tokenId,
+        address indexed sellerAddress,
+        uint256 sourceChainId,
+        uint256 destinationChainId,
+        uint256 priceInUsd
+    );
     event SaleDeleted(uint256 indexed saleId, uint256 indexed tokenId);
     event Buy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
     event BuyCrossSale(
@@ -280,6 +287,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
 
         // Effects
         _addCollateral(msg.sender, msg.value);
+        emit CreateCrossSale(tokenId, msg.sender, block.chainid, destinationChainId, priceInUsd);
         s_nft.listForSale(tokenId);
         string[] memory assetsInfo = s_nft.getAssetsInfo(tokenId);
 

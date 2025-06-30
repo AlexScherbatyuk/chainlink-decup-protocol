@@ -26,3 +26,18 @@ get-nft-collateral-sepolia:; forge script script/Interactions.s.sol:GetNftCollat
 get-nft-tcl-sepolia:; forge script script/Interactions.s.sol:GetNftTCLOfToken --sig "run(uint256)" 0 --rpc-url $(SEPOLIA_RPC_URL) --broadcast --account devKey -vvvv
 
 burn-eth-sepolia:; forge script script/Interactions.s.sol:BurnDeCupNft --sig "run(uint256)" 0 --rpc-url $(SEPOLIA_RPC_URL) --broadcast --account devKey -vvvv
+
+#avalanche fuji
+deploy-fuji:; forge script script/DeployDeCupManager.s.sol:DeployDeCupManager --broadcast --rpc-url $(AVALANCHE_FUJI_RPC_URL) --account devKey --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+
+deposit-eth-fuji:; forge script script/Interactions.s.sol:DepositNativeCurrencyAndMintNft --rpc-url $(AVALANCHE_FUJI_RPC_URL) --broadcast --account devKey -vvvv
+
+create-sale-fuji:; forge script script/Interactions.s.sol:CreateSale --sig "run(uint256)" $(TOKEN_ID) --rpc-url $(AVALANCHE_FUJI_RPC_URL) --broadcast --account devKey -vvvv
+
+add-single-asset-cup-fuji:; forge script script/Interactions.s.sol:AddSingleAssetCollateralToExistingCup --sig "run(uint256)" $(TOKEN_ID) --rpc-url $(AVALANCHE_FUJI_RPC_URL) --broadcast --account devKey -vvvv
+
+get-nft-collateral-fuji:; forge script script/Interactions.s.sol:GetNftCollateral --sig "run(uint256,address)" $(TOKEN_ID) $(TOKEN_ADDRESS) --rpc-url $(AVALANCHE_FUJI_RPC_URL) --broadcast --account devKey -vvvv
+
+get-nft-tcl-fuji:; forge script script/Interactions.s.sol:GetNftTCLOfToken --sig "run(uint256)" 0 --rpc-url $(AVALANCHE_FUJI_RPC_URL) --broadcast --account devKey -vvvv
+
+burn-eth-fuji:; forge script script/Interactions.s.sol:BurnDeCupNft --sig "run(uint256)" 0 --rpc-url $(AVALANCHE_FUJI_RPC_URL) --broadcast --account devKey -vvvv
