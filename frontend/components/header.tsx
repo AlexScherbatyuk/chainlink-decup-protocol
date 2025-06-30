@@ -70,13 +70,6 @@ export default function Header({ activeTab = "on-sale", onTabChange }: HeaderPro
           >
             My list
           </button>
-          <button
-            onClick={() => handleTabClick("drafts")}
-            className={`text-sm font-medium transition-colors hover:text-primary ${activeTab === "drafts" ? "text-foreground" : "text-muted-foreground"
-              }`}
-          >
-            Drafts
-          </button>
         </nav>
 
         {/* Right side - Blockchain dropdown and Connect Wallet */}

@@ -105,6 +105,7 @@ export function NFTProvider({ children }: NFTProviderProps) {
             const { success: successCreateCrossSaleOrderList, crossSaleOrders } = await getCreateCrossSaleOrderList(
                 getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager
             )
+
             if (success && activeNfts.length > 0) {
                 console.log(`Found ${activeNfts.length} active NFTs:`, activeNfts)
 
@@ -135,7 +136,9 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
                     console.log(`Creating NFT ${tokenId} with price ${tokenPriceInUsdDisplay}`)
 
-                    const destinationChainId = crossSaleOrders.find(order => order.tokenId === tokenId)?.destinationChainId
+                    const destinationChainId = crossSaleOrders.find(order => order.tokenId === tokenId)?.destinationChainId ?? chainId
+
+                    console.log("destinationChainId", destinationChainId)
                     createNFT({
                         tokenId: Number(tokenId),
                         price: tokenPriceInUsdDisplay,

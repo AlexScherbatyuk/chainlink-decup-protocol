@@ -447,16 +447,26 @@ const createSale = async (tokenId: bigint, beneficialWallet: string, contractAdd
 const createCrossSale = async (tokenId: bigint, beneficialWallet: string, contractAddress: string, sourceChainId: number, destinationChainId: number, priceInUsd: number): Promise<{ success: boolean; tokenId?: bigint }> => {
 
     let success = false
-    const priceInWei = BigInt((priceInUsd * 10 ** 8) / 10 ** 2)
-    console.log("createCrossSale", tokenId, beneficialWallet, contractAddress, sourceChainId, destinationChainId, priceInWei)
+    //const priceInWei = BigInt((priceInUsd * 10 ** 8) / 10 ** 2)
 
+    console.log("createCrossSale:")
+    console.log("tokenId", tokenId)
+    console.log("beneficialWallet", beneficialWallet)
+    console.log("contractAddress", contractAddress)
+    console.log("sourceChainId", sourceChainId)
+    console.log("destinationChainId", destinationChainId)
+    console.log("priceInUsd", priceInUsd)
+
+    const { success: successGetCcipCollateralInEth, collateralEth: cCipCollateralInEth } = await getCcipCollateralInEth(contractAddress)
+    console.log("cCipCollateralInEth", cCipCollateralInEth)
 
     try {
         const tx = await writeContract(config, {
             address: contractAddress as `0x${string}`,
             abi: DeCupManagerABI.abi,
             functionName: 'createCrossSale',
-            args: [tokenId, beneficialWallet, destinationChainId, priceInWei],
+            value: BigInt(cCipCollateralInEth),
+            args: [tokenId, beneficialWallet, destinationChainId, priceInUsd],
         })
 
         console.log("[createCrossSale]Transaction hash:", tx)
@@ -1847,7 +1857,7 @@ const getBurnedNftList = async (contractAddress: string): Promise<{ success: boo
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, collateralEth: number }
  */
-const getCcipCollateralInEth = async (saleId: bigint, contractAddress: string): Promise<{ success: boolean; collateralEth: number }> => {
+const getCcipCollateralInEth = async (contractAddress: string): Promise<{ success: boolean; collateralEth: number }> => {
 
     let success = false
     let collateralEth = 0
