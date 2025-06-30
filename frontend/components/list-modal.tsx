@@ -58,8 +58,8 @@ export default function ListModal({ isOpen, onClose, nft, onConfirm }: ListModal
                 {!nft.isListedForSale && (
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="chain">Select Blockchain</Label>
-                            <Select value={selectedChain} onValueChange={(value: "Sepolia" | "AvalancheFuji") => setSelectedChain(value)}>
+                            <Label htmlFor="chain">Select Blockchain: {nft.destinationChain}</Label>
+                            {/*<Select value={selectedChain} onValueChange={(value: "Sepolia" | "AvalancheFuji") => setSelectedChain(value)}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select blockchain" />
                                 </SelectTrigger>
@@ -70,7 +70,7 @@ export default function ListModal({ isOpen, onClose, nft, onConfirm }: ListModal
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
-                            </Select>
+                            </Select>*/}
                         </div>
                         <div className="rounded-lg bg-muted p-3 text-sm">
                             <p className="font-medium">NFT Details:</p>

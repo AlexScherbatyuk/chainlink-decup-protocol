@@ -20,6 +20,7 @@ export interface DeCupNFTSale {
     totalCollateral: number
     assets: Asset[]
     chain: "Sepolia" | "AvalancheFuji"
+    destinationChain: "Sepolia" | "AvalancheFuji"
     icon: string
     beneficialWallet: string
     createdAt: Date
@@ -32,6 +33,7 @@ export interface NFTSaleFormData {
     price: number
     assets: Asset[]
     chain: "Sepolia" | "AvalancheFuji"
+    destinationChain: "Sepolia" | "AvalancheFuji"
     beneficialWallet: string
     totalCollateral?: number
 }
@@ -44,6 +46,7 @@ interface NFTSaleStore {
     createNFTSale: (data: NFTSaleFormData) => DeCupNFTSale
     updateNFTSale: (id: string, data: Partial<NFTSaleFormData>) => boolean
     deleteNFTSale: (id: string) => boolean
+    deleteNFTSaleByTokenId: (tokenId: number) => boolean
 
     // Utilities
     getNFTSaleById: (id: string) => DeCupNFTSale | undefined
@@ -51,7 +54,7 @@ interface NFTSaleStore {
     getNFTSaleByChainIdTokenId: (chain: "Sepolia" | "AvalancheFuji", tokenId: number) => DeCupNFTSale | undefined
     getTotalCollateral: (assets: Asset[]) => number
     generateSaleId: () => number
-    clearAllSaleData: () => void
+    clearSaleStoreData: () => void
 }
 
 export const useNFTSaleStore = create<NFTSaleStore>()(
@@ -88,6 +91,7 @@ export const useNFTSaleStore = create<NFTSaleStore>()(
                         totalCollateral: data.totalCollateral || state.getTotalCollateral(data.assets),
                         assets: data.assets,
                         chain: data.chain,
+                        destinationChain: data.destinationChain,
                         icon: `/placeholder.svg?height=40&width=40&query=DeCup Sale ${saleId}`,
                         beneficialWallet: data.beneficialWallet,
                         createdAt: new Date(),
@@ -136,6 +140,19 @@ export const useNFTSaleStore = create<NFTSaleStore>()(
                     return true
                 },
 
+                deleteNFTSaleByTokenId: (tokenId: number) => {
+                    const state = get()
+                    const index = state.listedSales.findIndex((nftSale) => nftSale.tokenId === tokenId)
+
+                    if (index === -1) return false
+
+                    set((state) => ({
+                        listedSales: state.listedSales.filter((nftSale) => nftSale.tokenId !== tokenId),
+                    }))
+
+                    return true
+                },
+
                 // Utilities
                 getNFTSaleById: (id: string) => {
                     const state = get()
@@ -158,11 +175,14 @@ export const useNFTSaleStore = create<NFTSaleStore>()(
 
                 generateSaleId: () => {
                     const state = get()
-                    const maxSaleId = Math.max(...state.listedSales.map((nftSale) => nftSale.saleId), -1)
+                    if (state.listedSales.length === 0) {
+                        return 0
+                    }
+                    const maxSaleId = Math.max(...state.listedSales.map((nftSale) => nftSale.saleId))
                     return maxSaleId + 1
                 },
 
-                clearAllSaleData: () => {
+                clearSaleStoreData: () => {
                     set({
                         listedSales: [],
                     })

@@ -8,9 +8,9 @@ import ContextProvider from '@/context' // Adjust import path if needed
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'DeCup',
+  description: 'DeCup is a platform for creating and trading NFTs with collateralized assets',
+  generator: 'DeCup',
 }
 
 // ATTENTION!!! RootLayout must be an async function to use headers() 

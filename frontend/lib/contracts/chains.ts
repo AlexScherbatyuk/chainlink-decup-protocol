@@ -8,4 +8,6 @@ const getChainIdByName = {
     "AvalancheFuji": 43113
 } as const
 
-export { getChainNameById, getChainIdByName }
+const getChainIds = [11155111, 43113] as const
+
+export { getChainNameById, getChainIdByName, getChainIds }

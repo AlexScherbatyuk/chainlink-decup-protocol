@@ -17,10 +17,11 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trash2, Plus, Wallet } from "lucide-react"
 import { useNFTStore, type Asset, type NFTFormData } from "@/store/nft-store"
-import { depositNative, depositERC20, getTokenPriceInUsd, addTokenCollateralToExistingCup, addNativeCollateralToExistingCup } from "@/lib/contracts/interactions"
+import { depositNative, depositERC20, getTokenPriceInUsd, addTokenCollateralToExistingCup, addNativeCollateralToExistingCup, getCreateCrossSaleOrderList } from "@/lib/contracts/interactions"
 import { getContractAddresses, getTokenAddresses } from "@/lib/contracts/addresses"
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import PendingModal from "./pending-modal"
+import { getChainNameById } from "@/lib/contracts/chains"
 
 
 interface NFTModalProps {
@@ -68,6 +69,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
     totalCollateral: 0,
     assets: [],
     chain: "Sepolia",
+    destinationChain: "Sepolia",
     beneficialWallet: "",
   })
 
@@ -88,6 +90,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
       totalCollateral: 0,
       assets: [],
       chain: "Sepolia",
+      destinationChain: "Sepolia",
       beneficialWallet: "",
     })
     setNewAsset({
@@ -113,6 +116,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
             totalCollateral: nft.totalCollateral,
             assets: nft.assets,
             chain: nft.chain,
+            destinationChain: nft.destinationChain,
             beneficialWallet: nft.beneficialWallet,
           })
         }
@@ -197,10 +201,16 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
     // Convert decimal amount to wei (multiply by 10^18 for 18 decimal places)
     const amountInWei = BigInt(Math.floor(asset.amount * Math.pow(10, 18)))
 
+    console.log("asset.id", asset.id)
+    console.log("asset.token", asset.token)
+    console.log("asset.amount", asset.amount)
+    console.log("amountInWei", amountInWei)
+    console.log("formData.tokenId", formData.tokenId)
+
 
     setIsLoading(true)
     try {
-      if (formData.assets.length > 0) {
+      if (formData.assets.length > 1) {
         if (asset.token === "ETH" || asset.token === "AVAX") {
           console.log("addNativeCollateralToExistingCup")
           const result = await addNativeCollateralToExistingCup(amountInWei, contracts.DeCup, address, BigInt(formData.tokenId || 0))
@@ -217,8 +227,9 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
           }
         }
       } else {
-        console.log("depositNative")
+
         if (asset.token === "ETH" || asset.token === "AVAX") {
+          console.log("depositNative")
           const result = await depositNative(amountInWei, contracts.DeCup, address)
           success = result.success
           if (result.success && result.tokenId) {
@@ -350,9 +361,15 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
 
             <div className="space-y-2">
               <Label htmlFor="chain">Chain to sale NFT</Label>
+              {/*<Input
+                hidden={true}
+                id="chain"
+                value={getChainNameById[chainId as keyof typeof getChainNameById]}
+                onChange={(e) => setFormData((prev) => ({ ...prev, chain: e.target.value as "Sepolia" | "AvalancheFuji" }))}
+              />*/}
               <Select
-                value={formData.chain}
-                onValueChange={(value: "Sepolia" | "AvalancheFuji") => setFormData((prev) => ({ ...prev, chain: value }))}
+                value={formData.destinationChain}
+                onValueChange={(value: "Sepolia" | "AvalancheFuji") => setFormData((prev) => ({ ...prev, destinationChain: value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select chain" />

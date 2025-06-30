@@ -10,25 +10,27 @@ import ListModal from "../list-modal"
 import DeleteModal from "../delete-modal"
 import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
 import { useNFTSaleStore } from "@/store/nft-sale-store"
+import { useNFTContext } from "@/contexts/nft-context"
 import {
-    cancelSale, createSale, getMyDeCupNfts, getTokenAssetsList, getTokenPriceInUsd, getIsListedForSale, burn, addTokenCollateralToExistingCup,
-    addNativeCollateralToExistingCup, getCollateralBalance
+    cancelCrossSale, createCrossSale, createSale, cancelSale, burn
 } from "@/lib/contracts/interactions"
+import { AvalancheIcon, EthereumIcon } from "@/components/icons/chain-icons"
 import { getContractAddresses, getTokenAddresses, getTokenSymbols } from "@/lib/contracts/addresses"
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { getChainNameById, getChainIdByName } from "@/lib/contracts/chains"
 import PendingModal from "../pending-modal"
 
 
-type SortField = "tokenId" | "price" | "totalCollateral" | "chain"
+type SortField = "tokenId" | "price" | "totalCollateral" | "chain" | "destinationChain" | "isListedForSale"
 type SortDirection = "asc" | "desc"
 
 export default function MyListContent() {
-    const { myListNfts, clearAllNftData, createNFT, deleteNFT, toggleListing, getNFTById } = useNFTStore()
-    const { createNFTSale, deleteNFTSale, getNFTSaleBySaleId, getNFTSaleByChainIdTokenId, clearAllSaleData } = useNFTSaleStore()
+    const { myListNfts, deleteNFT, deleteNFTByTokenId, toggleListing } = useNFTStore()
+    const { createNFTSale, deleteNFTSale, deleteNFTSaleByTokenId, getNFTSaleBySaleId, getNFTSaleByChainIdTokenId } = useNFTSaleStore()
+    const { isFetching } = useNFTContext()
 
     const chainId = useChainId()
-    const { address, isConnected } = useAccount()
+    const { address } = useAccount()
 
     const [sortField, setSortField] = useState<SortField>("tokenId")
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -46,12 +48,14 @@ export default function MyListContent() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const [nftToDelete, setNftToDelete] = useState<DeCupNFT | null>(null)
 
+    // Handle sort
     const handleSort = (field: SortField) => {
         const newDirection = sortField === field && sortDirection === "asc" ? "desc" : "asc"
         setSortField(field)
         setSortDirection(newDirection)
     }
 
+    // Get sorted NFTs
     const getSortedNfts = (): DeCupNFT[] => {
         return [...myListNfts].sort((a, b) => {
             let aValue: string | number
@@ -74,6 +78,10 @@ export default function MyListContent() {
                     aValue = a.chain
                     bValue = b.chain
                     break
+                case "destinationChain":
+                    aValue = a.destinationChain
+                    bValue = b.destinationChain
+                    break
                 default:
                     return 0
             }
@@ -90,6 +98,7 @@ export default function MyListContent() {
         })
     }
 
+    // Get sort icon
     const getSortIcon = (field: SortField) => {
         if (sortField !== field) {
             return <ArrowUpDown className="h-4 w-4" />
@@ -97,19 +106,48 @@ export default function MyListContent() {
         return sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
     }
 
+    // Get chain icon
+    const getChainIcon = (chain: string, className: string = "h-10 w-10 rounded-lg") => {
+        switch (chain) {
+            case "AvalancheFuji":
+                return <AvalancheIcon className={className} />
+            case "Sepolia":
+                return <EthereumIcon className={className} />
+            default:
+                return <div className={`${className} bg-gray-200 rounded-lg`} />
+        }
+    }
+
+    // Open listing cancel modal, and toggle listing status
     const handleToggleListingClick = (nft: DeCupNFT) => {
         setIsListingDialogOpen(true)
         setNftToToggleListing(nft)
     }
 
-    const handleListingConfirm = async (selectedChain?: "Sepolia" | "AvalancheFuji") => {
+    // Handle listing confirm
+    const handleListingConfirm = async () => {
+
+        //TODO: remove this
         console.log("handleListingConfirm")
+        console.log("nftToToggleListing", nftToToggleListing)
+        console.log("selectedChain", nftToToggleListing?.destinationChain)
+        console.log("chainId", chainId)
+        console.log("nftToToggleListing.chain", nftToToggleListing?.chain)
+        console.log("nftToToggleListing.isListedForSale", nftToToggleListing?.isListedForSale)
+        console.log("nftToToggleListing.tokenId", nftToToggleListing?.tokenId)
+        console.log("nftToToggleListing.beneficialWallet", nftToToggleListing?.beneficialWallet)
+        console.log("nftToToggleListing.price", nftToToggleListing?.price)
+        console.log("nftToToggleListing.assets", nftToToggleListing?.assets)
+        console.log("nftToToggleListing.chain", nftToToggleListing?.chain)
+        console.log("nftToToggleListing.isListedForSale", nftToToggleListing?.isListedForSale)
+        console.log("nftToToggleListing.tokenId", nftToToggleListing?.tokenId)
+
         if (nftToToggleListing) {
             console.log("nftToToggleListing")
             const isCurrentlyListed = nftToToggleListing.isListedForSale
 
             // If we're listing (not currently listed) and a chain is provided, update the chain first
-            if (!isCurrentlyListed && selectedChain) {
+            if (!isCurrentlyListed) {
                 // Update the NFT with the selected chain
                 // Note: You might need to add updateNFT method to your store if it doesn't exist
                 // updateNFT(nftToToggleListing.id, { chain: selectedChain })
@@ -120,28 +158,36 @@ export default function MyListContent() {
 
             // Handle sale store logic based on the previous state
             if (isCurrentlyListed) {
-                console.log("isCurrentlyListed")
-                // NFT was listed, now being unlisted - delete from sale store
-                const existingSale = getNFTSaleByChainIdTokenId(nftToToggleListing.chain, nftToToggleListing.tokenId)
+                setTransactionType("list")
+                setIsLoading(true)
+                try {
+                    console.log("isCurrentlyListed")
+                    // NFT was listed, now being unlisted - delete from sale store
+                    //const existingSale = getNFTSaleByChainIdTokenId(nftToToggleListing.chain, nftToToggleListing.tokenId)
 
-                console.log("chainId:", nftToToggleListing.chain)
-                console.log("tokenId:", nftToToggleListing.tokenId)
-                console.log("existingSale:", existingSale)
+                    console.log("chainId:", nftToToggleListing.chain)
+                    console.log("tokenId:", nftToToggleListing.tokenId)
+                    //console.log("existingSale:", existingSale)
 
-                const destinationChainId = getChainIdByName[selectedChain || nftToToggleListing.chain]
-                let success
+                    const destinationChainId = getChainIdByName[nftToToggleListing.destinationChain]
+                    let success
 
-                if (existingSale) {
+                    //if (existingSale) {
 
                     if (destinationChainId !== chainId) {
                         // TODO: chage to CreateCrosSale
-                        ({ success, } = await cancelSale(BigInt(existingSale.saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager))
+                        ({ success, } = await cancelCrossSale(BigInt(nftToToggleListing.tokenId), getContractAddresses[destinationChainId as keyof typeof getContractAddresses].DeCupManager))
                     } else {
-                        ({ success, } = await cancelSale(BigInt(existingSale.saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager))
+                        ({ success, } = await cancelSale(BigInt(nftToToggleListing.tokenId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager))
                     }
                     if (success) {
-                        deleteNFTSale(existingSale.id)
+                        deleteNFTSaleByTokenId(nftToToggleListing.tokenId)
                     }
+                    //}
+                } catch (error) {
+                    console.error('Error canceling sale:', error)
+                } finally {
+                    setIsLoading(false)
                 }
             } else {
                 setTransactionType("list")
@@ -149,24 +195,31 @@ export default function MyListContent() {
                 try {
                     // NFT was not listed, now being listed - create sale in sale store
                     console.log("Creating sale for NFT:", nftToToggleListing.tokenId)
-                    const destinationChainId = getChainIdByName[selectedChain || nftToToggleListing.chain]
+                    console.log("Creating sale for NFT on:", nftToToggleListing.tokenId)
+                    const destinationChainId = 43113//getChainIdByName[nftToToggleListing.destinationChain]
+                    console.log("Creating sale for NFT on:", destinationChainId)
 
-                    let success, saleId
+                    let success, tokenId, saleId
+
                     if (destinationChainId !== chainId) {
                         // TODO: chage to CreateCrosSale
-                        ({ success, saleId } = await createSale(BigInt(nftToToggleListing.tokenId), nftToToggleListing.beneficialWallet, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager, chainId, destinationChainId))
+                        ({ success, tokenId } = await createCrossSale(BigInt(nftToToggleListing.tokenId), nftToToggleListing.beneficialWallet, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager, chainId, destinationChainId, nftToToggleListing.price))
+
                     } else {
                         ({ success, saleId } = await createSale(BigInt(nftToToggleListing.tokenId), nftToToggleListing.beneficialWallet, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager, chainId, chainId))
-                    }
 
-                    if (success) {
-                        createNFTSale({
-                            saleId: Number(saleId),
-                            price: nftToToggleListing.price,
-                            assets: nftToToggleListing.assets,
-                            chain: selectedChain || nftToToggleListing.chain,
-                            beneficialWallet: nftToToggleListing.beneficialWallet
-                        })
+
+                        if (success) {
+                            createNFTSale({
+                                saleId: Number(saleId),
+                                price: nftToToggleListing.price,
+                                assets: nftToToggleListing.assets,
+                                chain: nftToToggleListing.chain,
+                                destinationChain: nftToToggleListing.destinationChain,
+                                beneficialWallet: nftToToggleListing.beneficialWallet
+                            })
+                        }
+
                     }
                 } catch (error) {
                     console.error('Error creating sale:', error)
@@ -180,29 +233,33 @@ export default function MyListContent() {
         }
     }
 
+    // Open listing cancel modal
     const handleListingCancel = () => {
         setNftToToggleListing(null)
         setIsListingDialogOpen(false)
     }
 
+    // Open edit NFT modal
     const handleEdit = (nftId: string) => {
         setModalMode("edit")
         setEditingNftId(nftId)
         setIsModalOpen(true)
     }
 
+    // Open delete NFT modal
     const handleDeleteClick = (nft: DeCupNFT) => {
         setNftToDelete(nft)
         setIsDeleteDialogOpen(true)
     }
 
+    // Handle delete NFT
     const handleDeleteConfirm = async () => {
         if (nftToDelete) {
             setIsLoading(true)
             try {
                 const { success, tokenId } = await burn(BigInt(nftToDelete.tokenId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup, address as `0x${string}`)
                 if (success) {
-                    deleteNFT(nftToDelete.id, "my-list")
+                    deleteNFTByTokenId(nftToDelete.tokenId)
                     setNftToDelete(null)
                     setIsDeleteDialogOpen(false)
                 }
@@ -214,98 +271,23 @@ export default function MyListContent() {
         }
     }
 
+    // Open delete NFT modal
     const handleDeleteCancel = () => {
         setNftToDelete(null)
         setIsDeleteDialogOpen(false)
     }
 
+    // Open create NFT modal
     const handleCreate = () => {
         setModalMode("create")
         setEditingNftId(undefined)
         setIsModalOpen(true)
     }
 
+    // Get sorted NFTs
     const sortedNfts = getSortedNfts()
 
-    const fetchMyDeCupNfts = async () => {
-        try {
-            const { success, nfts } = await getMyDeCupNfts(getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup, address as `0x${string}`)
-
-            if (success && nfts.length > 0) {
-                console.log(`Found ${nfts.length} NFTs:`, nfts)
-
-                for (const tokenId of nfts) {
-                    let tokenAssets: Array<{ symbol: string, amount: number }> = []
-                    let totalCollateral = await getTokenPriceInUsd(tokenId, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup)
-                    const { success, tokenAddresses } = await getTokenAssetsList(tokenId, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup)
-                    if (success) {
-
-                        for (const tokenAddress of tokenAddresses) {
-                            const { success: successCollateralBalance, balance: collateralBalance } = await getCollateralBalance(BigInt(tokenId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup, tokenAddress)
-                            const amounteInEthDisplay = parseFloat(((successCollateralBalance ? Number(collateralBalance) : 0) / 10 ** 18).toFixed(2))
-
-                            console.log("tokenAddress:", tokenAddress)
-                            const chainTokens = getTokenSymbols[chainId as keyof typeof getTokenSymbols];
-                            const symbol = chainTokens?.[tokenAddress as keyof typeof chainTokens];
-                            tokenAssets.push({ symbol, amount: amounteInEthDisplay });
-                        }
-                    }
-                    console.log(tokenId, " ", totalCollateral, "[", tokenAssets, "] ", getChainNameById[chainId as keyof typeof getChainNameById])
-
-                    const { success: successIsListed, isListed } = await getIsListedForSale(Number(tokenId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup)
-                    if (successIsListed) {
-                        console.log("Token is listed for sale:", isListed)
-                    }
-                    else {
-                        console.log("Token is not listed for sale")
-                    }
-
-                    const tokenPriceInUsdDisplay = parseFloat((Number(totalCollateral.price) / 10 ** 8).toFixed(2))
-
-
-                    console.log("tokenPriceInUsdDisplay", tokenPriceInUsdDisplay)
-                    //  console.log("priceInEthDisplay", priceInEthDisplay)
-
-
-                    createNFT({
-                        tokenId: Number(tokenId),
-                        price: tokenPriceInUsdDisplay,
-                        totalCollateral: tokenPriceInUsdDisplay,
-                        assets: tokenAssets.map((asset, index) => ({
-                            id: index.toString(),
-                            token: asset.symbol,
-                            amount: asset.amount,
-                            walletAddress: address as `0x${string}`,
-                            deposited: true
-                        })),
-                        chain: getChainNameById[chainId as keyof typeof getChainNameById] as "Sepolia" | "AvalancheFuji",
-                        beneficialWallet: address as `0x${string}`,
-                        isListedForSale: isListed || false
-                    })
-
-
-                }
-            } else {
-                console.log('No NFTs found or fetch failed')
-            }
-        } catch (error) {
-            console.error('Error fetching NFTs:', error)
-        } finally {
-            // setIsLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        if (isConnected && address) {
-            console.log("Main useEffect - myListNfts:", myListNfts)
-            if (myListNfts.length === 0) {
-                fetchMyDeCupNfts()
-            }
-        } else {
-            clearAllNftData()
-            clearAllSaleData()
-        }
-    }, [chainId, address, isConnected])
+    // Note: NFT fetching is now handled by NFTProvider context
 
     return (
         <main className="flex-1 flex justify-center items-center">
@@ -360,6 +342,15 @@ export default function MyListContent() {
                                                         Minted on {getSortIcon("chain")}
                                                     </Button>
                                                 </th>
+                                                <th className="text-left p-4 font-medium">
+                                                    <Button
+                                                        variant="ghost"
+                                                        className="h-auto p-0 font-medium"
+                                                        onClick={() => handleSort("destinationChain")}
+                                                    >
+                                                        Sale on {getSortIcon("chain")}
+                                                    </Button>
+                                                </th>
                                                 <th className="text-left p-4 font-medium">Actions</th>
                                             </tr>
                                         </thead>
@@ -368,11 +359,7 @@ export default function MyListContent() {
                                                 <tr key={nft.id} className="border-b hover:bg-muted/50">
                                                     <td className="p-4">
                                                         <div className="relative">
-                                                            <img
-                                                                src={nft.icon || "/placeholder.svg"}
-                                                                alt={`DeCup NFT ${nft.tokenId}`}
-                                                                className="h-10 w-10 rounded-lg object-cover"
-                                                            />
+                                                            {getChainIcon(nft.chain, "h-10 w-10 rounded-lg object-cover")}
                                                             {nft.isListedForSale && (
                                                                 <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>
                                                             )}
@@ -397,6 +384,9 @@ export default function MyListContent() {
                                                     </td>
                                                     <td className="p-4">
                                                         <Badge variant={nft.chain === "Sepolia" ? "default" : "outline"}>{nft.chain}</Badge>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <Badge variant={nft.destinationChain === "Sepolia" ? "default" : "outline"}>{nft.destinationChain}</Badge>
                                                     </td>
                                                     <td className="p-4">
                                                         <div className="flex gap-2">
@@ -473,11 +463,7 @@ export default function MyListContent() {
                                 <CardContent className="p-4">
                                     <div className="flex items-start gap-4">
                                         <div className="relative">
-                                            <img
-                                                src={nft.icon || "/placeholder.svg"}
-                                                alt={`DeCup NFT ${nft.tokenId}`}
-                                                className="h-16 w-16 rounded-lg object-cover flex-shrink-0"
-                                            />
+                                            {getChainIcon(nft.chain, "h-16 w-16 rounded-lg object-cover flex-shrink-0")}
                                             {nft.isListedForSale && (
                                                 <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full border-2 border-white"></div>
                                             )}
@@ -537,7 +523,7 @@ export default function MyListContent() {
                 isOpen={isListingDialogOpen}
                 onClose={handleListingCancel}
                 nft={nftToToggleListing}
-                onConfirm={handleListingConfirm}
+                onConfirm={() => handleListingConfirm()}
             />
 
             {/* Delete Confirmation Modal */}

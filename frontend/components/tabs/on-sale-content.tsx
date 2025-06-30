@@ -6,35 +6,37 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { useNFTSaleStore, type DeCupNFTSale } from "@/store/nft-sale-store"
-import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
-import { getSaleOrderList, getPriceInETH, getCanceledSaleOrderList, buy, getSaleOrder, getTokenPriceInUsd, getTokenAssetsList } from "@/lib/contracts/interactions"
-import { getContractAddresses, getTokenSymbols } from "@/lib/contracts/addresses"
+import { useNFTStore } from "@/store/nft-store"
+import { useNFTContext } from "@/contexts/nft-context"
+import { getPriceInETH, buy, getSaleOrder, buyCrossSale } from "@/lib/contracts/interactions"
+import { AvalancheIcon, EthereumIcon } from "@/components/icons/chain-icons"
+import { getContractAddresses } from "@/lib/contracts/addresses"
 import { useAccount, useChainId } from "wagmi"
-import { getChainNameById } from "@/lib/contracts/chains"
-import { getMyDeCupNfts } from "@/lib/contracts/interactions"
 import PendingModal from "../pending-modal"
+import { getChainNameById, getChainIdByName } from "@/lib/contracts/chains"
 
 type SortField = "saleId" | "price" | "totalCollateral" | "chain"
 type SortDirection = "asc" | "desc"
 
 export default function OnSaleContent() {
-    const { myListNfts, onSaleNfts, clearAllNftData, createNFT, deleteNFT, toggleListing, getNFTById, getNFTByTokenId } = useNFTStore()
-    const { listedSales, clearAllSaleData, createNFTSale, deleteNFTSale, getNFTSaleById } = useNFTSaleStore()
+    const { deleteNFT, getNFTByTokenId } = useNFTStore()
+    const { listedSales, deleteNFTSale } = useNFTSaleStore()
+    const { isFetchingSales } = useNFTContext()
 
     // Get the store instance to access current state
     const nftSaleStore = useNFTSaleStore.getState
-
-
 
     const [sortField, setSortField] = useState<SortField>("saleId")
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
 
     const chainId = useChainId()
-    const { address, isConnected } = useAccount()
+
+    const { address } = useAccount()
     const [isLoading, setIsLoading] = useState(false)
 
 
-    const handleBuy = async (saleId: number) => {
+    // Buy NFT
+    const handleBuy = async (saleId: number, destinationChain: string) => {
         console.log("handleBuy", saleId)
         const nft = nftSaleStore().listedSales.find(nft => nft.saleId === saleId)
         if (!nft) {
@@ -42,52 +44,99 @@ export default function OnSaleContent() {
             return
         }
         const amount = nft.totalCollateral
-        setIsLoading(true)
-        try {
-            // TODO: Implement actual purchase logic with contract interaction
-            console.log("Attempting to buy NFT with saleId:", saleId)
-            console.log("chainId", chainId)
-            console.log("getContractAddresses", getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
-            const { success: successCheck, saleOrder } = await getSaleOrder(chainId, Number(saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
-            if (!successCheck) {
-                console.error("Sale not found")
-                return
-            }
+
+        const destinationChainId = getChainIdByName[destinationChain as keyof typeof getChainIdByName]
+        const saleOrderChainId = destinationChainId !== chainId ? destinationChainId : chainId
+
+        console.log("saleOrderChainId", saleOrderChainId)
+        console.log("destinationChainId", destinationChainId)
+        console.log("chainId", chainId)
+        const { success: successCheck, saleOrder } = await getSaleOrder(saleOrderChainId, Number(saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
+        if (!successCheck) {
+            console.error("Sale not found")
+            return
+        }
+        console.log("saleOrder", saleOrder)
+        const { success: successEth, priceInEth } = await getPriceInETH(saleOrder?.priceInUsd, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
+
+
+        if (nft.destinationChain === getChainNameById[chainId as keyof typeof getChainNameById]) {
+            setIsLoading(true)
+
             console.log("saleOrder", saleOrder)
+            try {
+                // TODO: Implement actual purchase logic with contract interaction
+                console.log("Attempting to buy NFT with saleId:", saleId)
+                console.log("chainId", chainId)
+                console.log("getContractAddresses", getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
 
-            const { success: successEth, priceInEth } = await getPriceInETH(saleOrder?.priceInUsd, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
-
-            //  const priceInEth = saleOrder?.priceInUsd
-            console.log("priceInEth", priceInEth)
-            const { success, saleId: saleIdResult } = await buy(BigInt(saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager, address as `0x${string}`, true, BigInt(priceInEth))
-            if (success) {
-                console.log("NFT bought successfully with saleId:", saleIdResult)
-                // Find the NFT sale by saleId first, then delete using internal ID
-                const nftSaleToDelete = nftSaleStore().listedSales.find(sale => sale.saleId === saleId)
-                if (nftSaleToDelete) {
-                    console.log("Deleting NFT sale with id:", nftSaleToDelete.id)
-                    deleteNFTSale(nftSaleToDelete.id)
-                    const nft = getNFTByTokenId(Number(saleOrder?.tokenId))
-                    if (nft) {
-                        deleteNFT(nft.id, "my-list")
+                //  const priceInEth = saleOrder?.priceInUsd
+                console.log("priceInEth", priceInEth)
+                const { success, saleId: saleIdResult } = await buy(BigInt(saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager, address as `0x${string}`, true, BigInt(priceInEth))
+                if (success) {
+                    console.log("NFT bought successfully with saleId:", saleIdResult)
+                    // Find the NFT sale by saleId first, then delete using internal ID
+                    const nftSaleToDelete = nftSaleStore().listedSales.find(sale => sale.saleId === saleId)
+                    if (nftSaleToDelete) {
+                        console.log("Deleting NFT sale with id:", nftSaleToDelete.id)
+                        deleteNFTSale(nftSaleToDelete.id)
+                        const nft = getNFTByTokenId(Number(saleOrder?.tokenId))
+                        if (nft) {
+                            deleteNFT(nft.id)
+                        }
                     }
+                } else {
+                    console.error("Failed to buy NFT")
                 }
-            } else {
-                console.error("Failed to buy NFT")
+            } catch (error) {
+                console.error("Error buying NFT:", error)
+            } finally {
+                setIsLoading(false)
             }
-        } catch (error) {
-            console.error("Error buying NFT:", error)
-        } finally {
-            setIsLoading(false)
+        } else {
+            setIsLoading(true)
+
+            try {
+                // TODO: Implement actual purchase logic with contract interaction
+                console.log("Attempting to buy cross chain NFT with saleId:", saleId)
+                console.log("chainId", chainId)
+                console.log("destinationChainId", destinationChainId)
+                console.log("getContractAddresses", getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
+
+                //  const priceInEth = saleOrder?.priceInUsd
+                console.log("priceInEth", priceInEth)
+                const { success, saleId: tokenIdResult } = await buyCrossSale(BigInt(saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager, address as `0x${string}`, true, BigInt(destinationChainId), BigInt(priceInEth))
+                if (success) {
+                    console.log("Cross chain NFT bought successfully with saleId:", tokenIdResult)
+                    // Find the NFT sale by saleId first, then delete using internal ID
+                    const nftSaleToDelete = nftSaleStore().listedSales.find(sale => sale.saleId === saleId)
+                    if (nftSaleToDelete) {
+                        console.log("Deleting NFT sale with id:", nftSaleToDelete.id)
+                        deleteNFTSale(nftSaleToDelete.id)
+                        const nft = getNFTByTokenId(Number(saleOrder?.tokenId))
+                        if (nft) {
+                            deleteNFT(nft.id)
+                        }
+                    }
+                } else {
+                    console.error("Failed to buy NFT")
+                }
+            } catch (error) {
+                console.error("Error buying NFT:", error)
+            } finally {
+                setIsLoading(false)
+            }
         }
     }
 
+    // Sort NFTs
     const handleSort = (field: SortField) => {
         const newDirection = sortField === field && sortDirection === "asc" ? "desc" : "asc"
         setSortField(field)
         setSortDirection(newDirection)
     }
 
+    // Get sorted NFTs
     const getSortedNfts = (): DeCupNFTSale[] => {
         return [...listedSales].sort((a, b) => {
             let aValue: string | number
@@ -126,6 +175,7 @@ export default function OnSaleContent() {
         })
     }
 
+    // Get sort icon
     const getSortIcon = (field: SortField) => {
         if (sortField !== field) {
             return <ArrowUpDown className="h-4 w-4" />
@@ -133,90 +183,21 @@ export default function OnSaleContent() {
         return sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
     }
 
-    const sortedNfts = getSortedNfts()
-
-    const fetchSaleOrders = async () => {
-        let tokenSymbols: string[] = []
-        console.log("callling getSaleOrderList")
-        const { success, saleOrders } = await getSaleOrderList(getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
-        const { success: successCanceledOrders, canceldOrders } = await getCanceledSaleOrderList(getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
-
-        // Filter out canceled orders from sale orders
-        const canceledOrderIds = new Set(canceldOrders?.map(order => Number(order.saleId)) || [])
-        const activeSaleOrders = saleOrders?.filter(order => !canceledOrderIds.has(Number(order.saleId))) || []
-
-
-
-        console.log("call getSaleOrderList: ", success)
-        if (success) {
-            for (const saleOrder of activeSaleOrders) {
-                console.log(saleOrder)
-                const tokenPriceInUsd = saleOrder.priceInUsd
-                const { success: successEth, priceInEth } = await getPriceInETH(tokenPriceInUsd, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
-
-                const tokenPriceInUsdDisplay = parseFloat((Number(tokenPriceInUsd) / 10 ** 8).toFixed(2))
-                const priceInEthDisplay = parseFloat(((successEth ? Number(priceInEth) : 0) / 10 ** 18).toFixed(2))
-
-                const { success: successCheck, saleOrder: saleOrderData } = await getSaleOrder(chainId, Number(saleOrder.saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
-
-                for (const tokenAddress of saleOrderData.tokenAddresses) {
-                    const chainTokens = getTokenSymbols[chainId as keyof typeof getTokenSymbols];
-                    const symbol = chainTokens?.[tokenAddress as keyof typeof chainTokens];
-                    tokenSymbols.push(symbol);
-                }
-
-                // Convert BigInt chain ID to proper chain name
-                const chainName = getChainNameById[Number(saleOrder.sourceChainId) as keyof typeof getChainNameById]
-
-
-                console.log(saleOrder.tokenId, " ", saleOrder.saleId, " ", chainName, " ", tokenPriceInUsdDisplay, " ", priceInEthDisplay, "", saleOrder.sellerAddress, " ", saleOrder.sourceChainId, " ", saleOrder.destinationChainId, " assets:", tokenSymbols)
-
-
-
-                createNFTSale({
-                    saleId: Number(saleOrder.saleId),
-                    price: priceInEthDisplay,
-                    assets: tokenSymbols.map((symbol, index) => ({
-                        id: index.toString(),
-                        token: symbol,
-                        amount: 0,
-                        walletAddress: saleOrder.sellerAddress as `0x${string}`,
-                        deposited: true
-                    })),
-                    totalCollateral: tokenPriceInUsdDisplay,
-                    chain: chainName as "Sepolia" | "AvalancheFuji",
-                    beneficialWallet: saleOrder.beneficiaryAddress //TODO: get beneficial wallet
-                })
-
-
-            }
+    // Get chain icon
+    const getChainIcon = (chain: string, className: string = "h-10 w-10 rounded-lg") => {
+        switch (chain) {
+            case "AvalancheFuji":
+                return <AvalancheIcon className={className} />
+            case "Sepolia":
+                return <EthereumIcon className={className} />
+            default:
+                return <div className={`${className} bg-gray-200 rounded-lg`} />
         }
-        // Get current state from store (not the captured closure value)
-        const currentListedSales = nftSaleStore().listedSales
-        console.log("listedSales after fetch:", currentListedSales)
     }
 
-    // useEffect(() => {
+    const sortedNfts = getSortedNfts()
 
-    //     fetchSaleOrders()
-    // }, [])
-
-    // Log whenever listedSales changes (for debugging)
-    // useEffect(() => {
-    //     console.log("listedSales state changed:", listedSales)
-    // }, [listedSales])
-
-    useEffect(() => {
-        console.log("Main useEffect - listedSales:", listedSales)
-        if (isConnected && address) {
-            if (nftSaleStore().listedSales.length === 0) {
-                fetchSaleOrders()
-            }
-        } else {
-            clearAllSaleData()
-            clearAllNftData()
-        }
-    }, [chainId, address, isConnected])
+    // Note: Sale orders fetching is now handled by NFTProvider context
 
 
     return (
@@ -284,21 +265,17 @@ export default function OnSaleContent() {
                                                 <tr key={nft.id} className="border-b hover:bg-muted/50">
                                                     <td className="p-4">
                                                         <div className="relative">
-                                                            <img
-                                                                src={nft.icon || "/placeholder.svg"}
-                                                                alt={`DeCup NFT Sale ${nft.saleId}`}
-                                                                className="h-10 w-10 rounded-lg object-cover"
-                                                            />
+                                                            {getChainIcon(nft.chain, "h-10 w-10 rounded-lg object-cover")}
                                                         </div>
                                                     </td>
                                                     <td className="p-4 font-mono">#{nft.saleId}</td>
-                                                    <td className="p-4 font-semibold">{nft.price} ETH</td>
+                                                    <td className="p-4 font-semibold">{nft.price} {nft.chain === "Sepolia" ? "ETH" : "AVAX"}</td>
                                                     <td className="p-4">${nft.totalCollateral.toLocaleString()}</td>
                                                     <td className="p-4">
                                                         <div className="flex flex-wrap gap-1">
                                                             {nft.assets.slice(0, 3).map((asset) => (
                                                                 <Badge key={asset.id} variant="secondary" className="text-xs">
-                                                                    {asset.token} {/*asset.amount.toLocaleString()*/}
+                                                                    {asset.token} {asset.amount.toLocaleString()}
                                                                 </Badge>
                                                             ))}
                                                             {nft.assets.length > 3 && (
@@ -309,10 +286,10 @@ export default function OnSaleContent() {
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
-                                                        <Badge variant={nft.chain === "Sepolia" ? "default" : "outline"}>{nft.chain}</Badge>
+                                                        <Badge variant={nft.destinationChain === "Sepolia" ? "default" : "outline"}>{nft.destinationChain}</Badge>
                                                     </td>
                                                     <td className="p-4">
-                                                        <Button size="sm" onClick={() => handleBuy(nft.saleId)}>Buy Now</Button>
+                                                        <Button size="sm" onClick={() => handleBuy(nft.saleId, nft.destinationChain)}>Buy Now</Button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -361,11 +338,7 @@ export default function OnSaleContent() {
                                 <CardContent className="p-4">
                                     <div className="flex items-start gap-4">
                                         <div className="relative">
-                                            <img
-                                                src={nft.icon || "/placeholder.svg"}
-                                                alt={`DeCup NFT Sale ${nft.saleId}`}
-                                                className="h-16 w-16 rounded-lg object-cover flex-shrink-0"
-                                            />
+                                            {getChainIcon(nft.chain, "h-16 w-16 rounded-lg object-cover flex-shrink-0")}
                                         </div>
                                         <div className="flex-1 space-y-2">
                                             <div className="flex items-center justify-between">
@@ -373,7 +346,7 @@ export default function OnSaleContent() {
                                                 <Badge variant={nft.chain === "Sepolia" ? "default" : "outline"}>{nft.chain}</Badge>
                                             </div>
                                             <div className="flex items-center justify-between">
-                                                <span className="font-semibold">{nft.price} ETH</span>
+                                                <span className="font-semibold">{nft.price} {nft.chain === "Sepolia" ? "ETH" : "AVAX"}</span>
                                                 <span className="text-sm text-muted-foreground">
                                                     TLC: ${nft.totalCollateral.toLocaleString()}
                                                 </span>
@@ -390,7 +363,7 @@ export default function OnSaleContent() {
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <Button size="sm" className="w-full" onClick={() => handleBuy(nft.saleId)}>
+                                            <Button size="sm" className="w-full" onClick={() => handleBuy(nft.saleId, nft.destinationChain)}>
                                                 Buy Now
                                             </Button>
                                         </div>
