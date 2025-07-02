@@ -353,7 +353,7 @@ export default function MyListContent() {
                                                 <tr key={nft.id} className="border-b hover:bg-muted/50">
                                                     <td className="p-4">
                                                         <div className="relative">
-                                                            {getChainIcon(nft.chain, "h-10 w-10 rounded-lg object-cover")}
+                                                            {getChainIcon(nft.destinationChain, "h-10 w-10 rounded-lg object-cover")}
                                                             {nft.isListedForSale && (
                                                                 <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-white"></div>
                                                             )}

@@ -984,8 +984,8 @@ const getMyDeCupNfts = async (contractAddress: string, walletAddress: string): P
         const currentBlock = await publicClient.getBlockNumber();
         const allTokenIds: bigint[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
@@ -1120,8 +1120,8 @@ const getSaleOrderList = async (contractAddress: string): Promise<{ success: boo
         const currentBlock = await publicClient.getBlockNumber();
         const saleOrders: any[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
@@ -1217,8 +1217,8 @@ const getCreateCrossSaleOrderList = async (contractAddress: string): Promise<{ s
         const currentBlock = await publicClient.getBlockNumber();
         const crossSaleOrders: any[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
@@ -1312,8 +1312,8 @@ const getCanceledSaleOrderList = async (contractAddress: string): Promise<{ succ
         const currentBlock = await publicClient.getBlockNumber();
         const canceldOrders: any[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
@@ -1403,8 +1403,8 @@ const getCanceledCrossSaleOrderList = async (contractAddress: string): Promise<{
         const currentBlock = await publicClient.getBlockNumber();
         const canceldCrossOrders: any[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
@@ -1494,8 +1494,8 @@ const getBoughtCrossSaleOrders = async (contractAddress: string): Promise<{ succ
         const currentBlock = await publicClient.getBlockNumber();
         const boughtCrossOrders: any[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
@@ -1588,8 +1588,8 @@ const getBoughtSaleOrders = async (contractAddress: string): Promise<{ success: 
         const currentBlock = await publicClient.getBlockNumber();
         const boughtOrders: any[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
@@ -1682,8 +1682,8 @@ const getDeletedSaleOrders = async (contractAddress: string): Promise<{ success:
         const currentBlock = await publicClient.getBlockNumber();
         const deletedOrders: any[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
@@ -1774,8 +1774,8 @@ const getBurnedNftList = async (contractAddress: string): Promise<{ success: boo
         const currentBlock = await publicClient.getBlockNumber();
         const burnedNfts: any[] = [];
 
-        // Use a smaller block range to avoid RPC limits (10,000 blocks at a time)
-        const BLOCK_CHUNK_SIZE = 10000;
+        // Use a smaller block range to avoid RPC limits (2,000 blocks at a time to stay under 2048 limit)
+        const BLOCK_CHUNK_SIZE = 2000;
         const MAX_BLOCKS_TO_SCAN = 40000; // Scan last 40k blocks maximum
 
         const startBlock = currentBlock - BigInt(MAX_BLOCKS_TO_SCAN);
