@@ -22,6 +22,7 @@ import { getContractAddresses, getTokenAddresses } from "@/lib/contracts/address
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import PendingModal from "./pending-modal"
 import { getChainNameById } from "@/lib/contracts/chains"
+import { custLog } from "@/lib/utils"
 
 
 interface NFTModalProps {
@@ -172,7 +173,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
 
   const handleRemoveAsset = (asset: Asset) => {
     if (asset.deposited) {
-      console.log("Asset already deposited:", asset.id, " to withdraw DeCup NFT must be burn")
+      custLog('debug', `[nft-modal] Asset already deposited: ${asset.id} to withdraw DeCup NFT must be burn`)
       return
     }
 
@@ -184,7 +185,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
 
   const handleDeposit = async (asset: Asset, tokenId: string) => {
     if (asset.deposited) {
-      console.log("Asset already deposited:", asset.id, " to remove asset must be deposited")
+      custLog('debug', `[nft-modal] Asset already deposited: ${asset.id} to remove asset must be deposited`)
       return
     }
 
@@ -201,25 +202,24 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
     // Convert decimal amount to wei (multiply by 10^18 for 18 decimal places)
     const amountInWei = BigInt(Math.floor(asset.amount * Math.pow(10, 18)))
 
-    console.log("asset.id", asset.id)
-    console.log("asset.token", asset.token)
-    console.log("asset.amount", asset.amount)
-    console.log("amountInWei", amountInWei)
-    console.log("formData.tokenId", formData.tokenId)
-
+    custLog('debug', '[nft-modal] asset.id', asset.id)
+    custLog('debug', '[nft-modal] asset.token', asset.token)
+    custLog('debug', '[nft-modal] asset.amount', asset.amount)
+    custLog('debug', '[nft-modal] amountInWei', amountInWei)
+    custLog('debug', '[nft-modal] formData.tokenId', formData.tokenId)
 
     setIsLoading(true)
     try {
       if (formData.assets.length > 1) {
         if (asset.token === "ETH" || asset.token === "AVAX") {
-          console.log("addNativeCollateralToExistingCup")
+          custLog('debug', '[nft-modal] addNativeCollateralToExistingCup')
           const result = await addNativeCollateralToExistingCup(amountInWei, contracts.DeCup, address, BigInt(formData.tokenId || 0))
           success = result.success
           if (result.success && result.tokenId) {
             assetTokenId = result.tokenId.toString()
           }
         } else {
-          console.log("addTokenCollateralToExistingCup")
+          custLog('debug', '[nft-modal] addTokenCollateralToExistingCup')
           const result = await addTokenCollateralToExistingCup(amountInWei, (getTokenAddresses[chainId as keyof typeof getTokenAddresses] as any)[asset.token], contracts.DeCup, address, BigInt(formData.tokenId || 0))
           success = result.success
           if (result.success && result.tokenId) {
@@ -229,14 +229,14 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
       } else {
 
         if (asset.token === "ETH" || asset.token === "AVAX") {
-          console.log("depositNative")
+          custLog('debug', '[nft-modal] depositNative')
           const result = await depositNative(amountInWei, contracts.DeCup, address)
           success = result.success
           if (result.success && result.tokenId) {
             assetTokenId = result.tokenId.toString()
           }
         } else {
-          console.log("depositERC20")
+          custLog('debug', '[nft-modal] depositERC20')
           const result = await depositERC20(amountInWei, (getTokenAddresses[chainId as keyof typeof getTokenAddresses] as any)[asset.token], contracts.DeCup, address)
           success = result.success
           if (result.success && result.tokenId) {
@@ -251,10 +251,10 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
             storedAsset.id === asset.id ? { ...storedAsset, deposited: !storedAsset.deposited, id: assetTokenId } : storedAsset
           ),
         }))
-        console.log("Asset deposited successfully:", assetTokenId)
+        custLog('debug', '[nft-modal] Asset deposited successfully:', assetTokenId)
       }
     } catch (error) {
-      console.error("Failed to deposit asset:", error)
+      custLog('error', '[nft-modal] Failed to deposit asset:', error)
       alert("Failed to deposit asset. Please check your wallet connection and try again.")
     } finally {
       setIsLoading(false)
@@ -319,7 +319,7 @@ export default function NFTModal({ isOpen, onClose, mode, nftId }: NFTModalProps
         const contracts = getContractAddresses[chainId as keyof typeof getContractAddresses]
         const asset = formData.assets[0]
         // Only get price if asset is deposited and has a valid tokenId
-        console.log("asset tokenId", asset.id)
+        custLog('debug', '[nft-modal] asset tokenId', asset.id)
         if (asset.deposited && asset.id && !isNaN(Number(asset.id))) {
           const totalCollateral: { price: number } = await getTokenPriceInUsd(BigInt(formData.tokenId || 0), contracts.DeCup)
           setTotalCollateralInUsd(Number(totalCollateral.price) / 100000000)

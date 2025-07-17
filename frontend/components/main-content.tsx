@@ -2,7 +2,7 @@
 
 import OnSaleContent from "./tabs/on-sale-content"
 import MyListContent from "./tabs/my-list-content"
-import { NFTProvider } from "@/contexts/nft-context"
+import { NFTProvider } from "@/context/nft-context"
 
 type TabType = "on-sale" | "my-list" | "drafts"
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { custLog } from "@/lib/utils"
 import { create } from "zustand"
 import { devtools, persist } from "zustand/middleware"
 
@@ -84,26 +85,26 @@ export const useNFTStore = create<NFTStore>()(
         // Actions
         createNFT: (data: NFTFormData) => {
           const state = get()
-          console.log("createNFT", data)
+          custLog('debug', '[nft-store] createNFT', data)
           // Check if NFT with this tokenId already exists
           if (data.tokenId) {
-            console.log("data.tokenId", data.tokenId)
+            custLog('debug', '[nft-store] data.tokenId', data.tokenId)
             const existingNFT = state.getNFTByTokenId(data.tokenId)
             if (existingNFT) {
-              console.log("data.tokenId", data.tokenId)
+              custLog('debug', '[nft-store] data.tokenId', data.tokenId)
               // Update existing NFT instead of creating new one
               const success = state.updateNFT(existingNFT.id, data)
               if (success) {
-                console.log("data.tokenId", data.tokenId)
+                custLog('debug', '[nft-store] data.tokenId', data.tokenId)
                 // Return the updated NFT
                 return state.getNFTByTokenId(data.tokenId)!
               }
             }
           }
 
-          console.log("Continue creating NFT")
+          custLog('debug', '[nft-store] Continue creating NFT')
           // Create new NFT if no existing one found
-          const tokenId = data.tokenId || state.generateTokenId()
+          const tokenId = typeof data.tokenId === 'number' && data.tokenId >= 0 ? data.tokenId : state.generateTokenId()
           const newNFT: DeCupNFT = {
             id: `nft-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             tokenId: tokenId,

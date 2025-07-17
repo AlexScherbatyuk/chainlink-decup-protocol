@@ -22,6 +22,7 @@ import {
 } from '@/lib/contracts/interactions'
 import { getContractAddresses } from '@/lib/contracts/addresses'
 import { getChainNameById, getChainIds } from '@/lib/contracts/chains'
+import { custLog } from '@/lib/utils'
 
 interface NFTContextType {
     isLoading: boolean
@@ -63,6 +64,7 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
     // Fetch my DeCup NFTs from the contract
     const fetchMyDeCupNfts = async () => {
+        custLog('debug', '[NFT Context] fetchMyDeCupNfts', { isConnected, address, chainId })
         if (!isConnected || !address || !chainId) {
             return
         }
@@ -71,7 +73,7 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
         // Prevent duplicate fetches
         if (fetchingRef.current || lastFetchKey.current === fetchKey) {
-            console.log('Skipping fetch - already in progress or already fetched for this key')
+            custLog('debug', '[NFT Context|fetchMyDeCupNfts] Skipping fetch - already in progress or already fetched for this key')
             return
         }
 
@@ -81,20 +83,22 @@ export function NFTProvider({ children }: NFTProviderProps) {
         setError(null)
 
         try {
-            console.log('Starting NFT fetch for chain:', chainId, 'address:', address)
+            custLog('debug', `[NFT Context|fetchMyDeCupNfts] Starting NFT fetch for chain: ${chainId}, address: ${address}`)
 
             const { success, nfts } = await getMyDeCupNfts(
                 getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup,
-                address as `0x${string}`
+                address as `0x${string}`,
+                chainId
             )
 
             // Get burned NFTs
             const { success: successBurnedNfts, burnedNfts } = await getBurnedNftList(
-                getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager
+                getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager,
+                chainId
             )
 
             if (!successBurnedNfts) {
-                console.error("Failed to get burned NFTs")
+                custLog('error', '[NFT Context|fetchMyDeCupNfts] Failed to get burned NFTs')
                 return
             }
 
@@ -103,16 +107,17 @@ export function NFTProvider({ children }: NFTProviderProps) {
             const activeNfts = nfts?.filter(nft => !burnedNftIds.has(Number(nft))) || []
 
             const { success: successCreateCrossSaleOrderList, crossSaleOrders } = await getCreateCrossSaleOrderList(
-                getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager
+                getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager,
+                chainId
             )
 
             if (success && activeNfts.length > 0) {
-                console.log(`Found ${activeNfts.length} active NFTs:`, activeNfts)
+                custLog('debug', `[NFT Context|fetchMyDeCupNfts] Found ${activeNfts.length} active NFTs:`, activeNfts)
 
                 for (const tokenId of activeNfts) {
                     // Skip if already exists in store
                     if (checkIfNFTExistsByTokenId(Number(tokenId))) {
-                        console.log(`NFT ${tokenId} already exists in store, skipping`)
+                        custLog('debug', `[NFT Context|fetchMyDeCupNfts] NFT ${tokenId} already exists in store, skipping`)
                         continue
                     }
                     //244 6923 6340
@@ -134,11 +139,11 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
                     const tokenPriceInUsdDisplay = parseFloat((Number(totalCollateral.price) / 10 ** 8).toFixed(2))
 
-                    console.log(`Creating NFT ${tokenId} with price ${tokenPriceInUsdDisplay}`)
+                    custLog('debug', `[NFT Context|fetchMyDeCupNfts] Creating NFT ${tokenId} with price ${tokenPriceInUsdDisplay}`)
 
                     const destinationChainId = crossSaleOrders.find(order => order.tokenId === tokenId)?.destinationChainId ?? chainId
 
-                    console.log("destinationChainId", destinationChainId)
+                    custLog('debug', `[NFT Context|fetchMyDeCupNfts] destinationChainId`, { destinationChainId })
                     createNFT({
                         tokenId: Number(tokenId),
                         price: tokenPriceInUsdDisplay,
@@ -157,11 +162,11 @@ export function NFTProvider({ children }: NFTProviderProps) {
                     })
                 }
             } else {
-                console.log('No NFTs found or fetch failed')
+                custLog('debug', '[NFT Context|fetchMyDeCupNfts] No NFTs found or fetch failed')
             }
         } catch (error) {
-            console.error('Error fetching NFTs:', error)
-            setError(error instanceof Error ? error.message : 'Failed to fetch NFTs')
+            custLog('error', '[NFT Context|fetchMyDeCupNfts] Error fetching NFTs:', error)
+            //setError(error instanceof Error ? error.message : 'Failed to fetch NFTs')
         } finally {
             setIsFetching(false)
             fetchingRef.current = false
@@ -170,6 +175,7 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
     // Fetch sale orders from the contract
     const fetchSaleOrders = async () => {
+        custLog('debug', '[NFT Context] fetchSaleOrders', { isConnected, address, chainId })
         if (!isConnected || !address || !chainId) {
             return
         }
@@ -178,7 +184,7 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
         // Prevent duplicate fetches
         if (fetchingSalesRef.current || lastSalesFetchKey.current === fetchKey) {
-            console.log('Skipping sales fetch - already in progress or already fetched for this key')
+            custLog('debug', '[NFT Context|saleOrders] Skipping sales fetch - already in progress or already fetched for this key')
             return
         }
 
@@ -188,20 +194,21 @@ export function NFTProvider({ children }: NFTProviderProps) {
         setError(null)
 
         try {
-            console.log('Starting sale orders fetch for chain:', chainId)
+            custLog('debug', '[NFT Context|fetchSaleOrders] Starting sale orders fetch for chain:', chainId)
 
             // Get sale orders
             const { success, saleOrders } = await getSaleOrderList(
-                getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager
+                getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager,
+                chainId
             )
 
 
             if (!success) {
-                console.error("Failed to get sale orders")
+                custLog('error', '[NFT Context|fetchSaleOrders] Failed to get sale orders')
                 return
             }
 
-            console.log("saleOrders", saleOrders)
+            custLog('debug', '[NFT Context|fetchSaleOrders] saleOrders', saleOrders)
 
             // Get canceled sale orders
             // const { success: successCanceledOrders, canceldOrders } = await getCanceledSaleOrderList(
@@ -257,31 +264,37 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
             //const activeSaleOrders = [...activeBoughtCrossOrders]
 
+
+
+            ///////////////??DEBUG??///////////////
+
+            custLog('debug', '[NFT Context|fetchSaleOrders] Looking for deleted / burned sale orders')
             const { success: successDeletedOrders, deletedOrders } = await getDeletedSaleOrders(
-                getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager
+                getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager,
+                chainId
             )
 
             if (!successDeletedOrders) {
-                console.error("Failed to get deleted sale orders")
+                custLog('error', '[NFT Context|fetchSaleOrders] Failed to get deleted sale orders')
                 return
             }
 
             const deletedOrderIds = new Set(deletedOrders?.map(order => Number(order.saleId)) || [])
             const activeSaleOrders = saleOrders?.filter(order => !deletedOrderIds.has(Number(order.saleId))) || []
 
-            console.log(`Found ${activeSaleOrders.length} active sale orders`)
+            custLog('debug', `[NFT Context|fetchSaleOrders] Found ${activeSaleOrders.length} active sale orders`, { activeSaleOrders })
 
             for (const saleOrder of activeSaleOrders) {
                 // Skip if already exists in store by saleId
                 const existingSaleById = getNFTSaleBySaleId(Number(saleOrder.saleId))
                 if (existingSaleById) {
-                    console.log(`Sale ${saleOrder.saleId} already exists in store, skipping`)
+                    custLog('debug', `[NFT Context|fetchSaleOrders] Sale ${saleOrder.saleId} already exists in store, skipping`)
                     continue
                 }
 
                 //const chainName = getChainNameById[Number(saleOrder.sourceChainId) as keyof typeof getChainNameById]
                 const chainName = getChainNameById[Number(saleOrder.destinationChainId) as keyof typeof getChainNameById] as "Sepolia" | "AvalancheFuji";
-                console.log("chainName", chainName)
+                custLog('debug', `[NFT Context|fetchSaleOrders] chainName`, { chainName })
 
 
                 const tokenPriceInUsd = saleOrder.priceInUsd
@@ -295,7 +308,7 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
 
                 const saleOrderChainId = saleOrder.sourceChainId !== saleOrder.destinationChainId ? saleOrder.destinationChainId : saleOrder.sourceChainId
-                console.log("saleOrderChainId", saleOrderChainId)
+                custLog('debug', `[NFT Context|fetchSaleOrders] saleOrderChainId`, { saleOrderChainId })
                 const { success: successCheck, saleOrder: saleOrderData } = await getSaleOrder(
                     saleOrderChainId,
                     Number(saleOrder.saleId),
@@ -304,16 +317,17 @@ export function NFTProvider({ children }: NFTProviderProps) {
 
 
                 if (!saleOrderData) {
-                    console.log(`Failed to get sale order data for ${saleOrder.saleId}, skipping`)
+                    custLog('error', `[NFT Context|fetchSaleOrders] Failed to get sale order data for ${saleOrder.saleId}, skipping`)
                     continue
                 }
 
-                console.log(`Creating sale order ${saleOrder.saleId} with price ${tokenPriceInUsdDisplay}`)
-                console.log("saleOrderData", saleOrderData)
-                console.log("saleId", saleOrder.saleId)
-                console.log("source chainId", saleOrder.sourceChainId)
-                console.log("destination chainId", saleOrder.destinationChainId)
+                custLog('debug', `[NFT Context|fetchSaleOrders] Creating sale order ${saleOrder.saleId} with price ${tokenPriceInUsdDisplay}`)
+                custLog('debug', `[NFT Context|fetchSaleOrders] saleOrderData: `, saleOrderData)
+                custLog('debug', `[NFT Context|fetchSaleOrders] saleId: `, saleOrder.saleId)
+                custLog('debug', `[NFT Context|fetchSaleOrders] source chainId: `, saleOrder.sourceChainId)
+                custLog('debug', `[NFT Context|fetchSaleOrders] destination chainId: `, saleOrder.destinationChainId)
 
+                custLog('debug', `[NFT Context|fetchSaleOrders] Creating sale order ${saleOrder.saleId} with price ${tokenPriceInUsdDisplay}`)
                 createNFTSale({
                     saleId: Number(saleOrder.saleId),
                     price: priceInEthDisplay,
@@ -331,8 +345,8 @@ export function NFTProvider({ children }: NFTProviderProps) {
                 })
             }
         } catch (error) {
-            console.error('Error fetching sale orders:', error)
-            setError(error instanceof Error ? error.message : 'Failed to fetch sale orders')
+            custLog('error', '[NFT Context|fetchSaleOrders] Error fetching sale orders:', error)
+            //setError(error instanceof Error ? error.message : 'Failed to fetch sale orders')
         } finally {
             setIsFetchingSales(false)
             fetchingSalesRef.current = false
@@ -364,14 +378,14 @@ export function NFTProvider({ children }: NFTProviderProps) {
     // Main effect to handle connection changes
     useEffect(() => {
         if (isConnected && address && chainId) {
-            console.log('NFT Context: Connected, clearing stores and fetching fresh data')
+            custLog('debug', 'NFT Context: Connected, clearing stores and fetching fresh data')
             // Clear stores and fetch fresh data on page load/refresh
             clearNftStoreData()
             clearSaleStoreData()
             fetchMyDeCupNfts()
             fetchSaleOrders()
         } else {
-            console.log('NFT Context: Disconnected, clearing data')
+            custLog('debug', 'NFT Context: Disconnected, clearing data')
             clearNftStoreData()
             clearSaleStoreData()
             fetchingRef.current = false

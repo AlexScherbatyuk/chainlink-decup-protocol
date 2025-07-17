@@ -3,6 +3,7 @@
 import { create } from "zustand"
 import { devtools, persist } from "zustand/middleware"
 import { getChainIdByName } from "@/lib/contracts/chains"
+import { custLog } from "@/lib/utils"
 
 export interface Asset {
     id: string
@@ -82,7 +83,9 @@ export const useNFTSaleStore = create<NFTSaleStore>()(
                     }
 
                     // Create new NFT sale if no existing one found
-                    const saleId = data.saleId || state.generateSaleId()
+                    custLog('debug', '[nft-sale-store] data.saleId', data.saleId)
+                    const saleId = typeof data.saleId === 'number' && data.saleId >= 0 ? data.saleId : state.generateSaleId()
+                    custLog('debug', '[nft-sale-store] saleId', saleId)
                     const newNFTSale: DeCupNFTSale = {
                         id: `nft-sale-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                         saleId: saleId,
@@ -97,6 +100,8 @@ export const useNFTSaleStore = create<NFTSaleStore>()(
                         createdAt: new Date(),
                         updatedAt: new Date(),
                     }
+
+                    custLog('debug', '[nft-sale-store] newNFTSale', newNFTSale)
 
                     set((state) => ({
                         listedSales: [...state.listedSales, newNFTSale],
@@ -186,7 +191,7 @@ export const useNFTSaleStore = create<NFTSaleStore>()(
                     set({
                         listedSales: [],
                     })
-                    console.log("🗑️ All data cleared from DeCup NFT Sale store")
+                    custLog('debug', '[nft-sale-store] 🗑️ All data cleared from DeCup NFT Sale store')
                 },
             }),
             {

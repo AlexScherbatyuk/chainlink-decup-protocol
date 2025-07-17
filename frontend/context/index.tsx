@@ -6,6 +6,7 @@ import { WagmiProvider, cookieToInitialState, type Config } from 'wagmi'
 import { createAppKit } from '@reown/appkit/react'
 // Import config, networks, projectId, and wagmiAdapter from your config file
 import { config, networks, projectId, wagmiAdapter, sepolia, avalancheFuji } from '@/config'
+import { custLog } from '@/lib/utils'
 
 const queryClient = new QueryClient()
 
@@ -19,7 +20,7 @@ const metadata = {
 // Initialize AppKit *outside* the component render cycle
 // Add a check for projectId for type safety, although config throws error already.
 if (!projectId) {
-    console.error("AppKit Initialization Error: Project ID is missing.");
+    custLog('error', '[context:index] AppKit Initialization Error: Project ID is missing.')
     // Optionally throw an error or render fallback UI
 } else {
     createAppKit({

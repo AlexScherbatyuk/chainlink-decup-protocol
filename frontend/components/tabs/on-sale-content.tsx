@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { useNFTSaleStore, type DeCupNFTSale } from "@/store/nft-sale-store"
 import { useNFTStore } from "@/store/nft-store"
-import { useNFTContext } from "@/contexts/nft-context"
+import { useNFTContext } from "@/context/nft-context"
 import { getPriceInETH, buy, getSaleOrder, buyCrossSale } from "@/lib/contracts/interactions"
 import { AvalancheIcon, EthereumIcon } from "@/components/icons/chain-icons"
 import { getContractAddresses } from "@/lib/contracts/addresses"
 import { useAccount, useChainId } from "wagmi"
 import PendingModal from "../pending-modal"
 import { getChainNameById, getChainIdByName } from "@/lib/contracts/chains"
+import { custLog } from "@/lib/utils"
 
 type SortField = "saleId" | "price" | "totalCollateral" | "chain"
 type SortDirection = "asc" | "desc"
@@ -37,10 +38,10 @@ export default function OnSaleContent() {
 
     // Buy NFT
     const handleBuy = async (saleId: number, destinationChain: string) => {
-        console.log("handleBuy", saleId)
+        custLog('debug', '[on-sale] handleBuy', saleId)
         const nft = nftSaleStore().listedSales.find(nft => nft.saleId === saleId)
         if (!nft) {
-            console.error("NFT not found")
+            custLog('error', '[on-sale] NFT not found')
             return
         }
         const amount = nft.totalCollateral
@@ -48,37 +49,37 @@ export default function OnSaleContent() {
         const destinationChainId = getChainIdByName[destinationChain as keyof typeof getChainIdByName]
         const saleOrderChainId = destinationChainId !== chainId ? destinationChainId : chainId
 
-        console.log("saleOrderChainId", saleOrderChainId)
-        console.log("destinationChainId", destinationChainId)
-        console.log("chainId", chainId)
+        custLog('debug', '[on-sale] saleOrderChainId', saleOrderChainId)
+        custLog('debug', '[on-sale] destinationChainId', destinationChainId)
+        custLog('debug', '[on-sale] chainId', chainId)
         const { success: successCheck, saleOrder } = await getSaleOrder(saleOrderChainId, Number(saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
         if (!successCheck) {
-            console.error("Sale not found")
+            custLog('error', '[on-sale] Sale not found')
             return
         }
-        console.log("saleOrder", saleOrder)
+        custLog('debug', '[on-sale] saleOrder', saleOrder)
         const { success: successEth, priceInEth } = await getPriceInETH(saleOrder?.priceInUsd, getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
 
 
         if (nft.destinationChain === getChainNameById[chainId as keyof typeof getChainNameById]) {
             setIsLoading(true)
 
-            console.log("saleOrder", saleOrder)
+            custLog('debug', '[on-sale] saleOrder', saleOrder)
             try {
                 // TODO: Implement actual purchase logic with contract interaction
-                console.log("Attempting to buy NFT with saleId:", saleId)
-                console.log("chainId", chainId)
-                console.log("getContractAddresses", getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
+                custLog('debug', '[on-sale] Attempting to buy NFT with saleId:', saleId)
+                custLog('debug', '[on-sale] chainId', chainId)
+                custLog('debug', '[on-sale] getContractAddresses', getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
 
                 //  const priceInEth = saleOrder?.priceInUsd
-                console.log("priceInEth", priceInEth)
+                custLog('debug', '[on-sale] priceInEth', priceInEth)
                 const { success, saleId: saleIdResult } = await buy(BigInt(saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager, address as `0x${string}`, true, BigInt(priceInEth))
                 if (success) {
-                    console.log("NFT bought successfully with saleId:", saleIdResult)
+                    custLog('debug', '[on-sale] NFT bought successfully with saleId:', saleIdResult)
                     // Find the NFT sale by saleId first, then delete using internal ID
                     const nftSaleToDelete = nftSaleStore().listedSales.find(sale => sale.saleId === saleId)
                     if (nftSaleToDelete) {
-                        console.log("Deleting NFT sale with id:", nftSaleToDelete.id)
+                        custLog('debug', '[on-sale] Deleting NFT sale with id:', nftSaleToDelete.id)
                         deleteNFTSale(nftSaleToDelete.id)
                         const nft = getNFTByTokenId(Number(saleOrder?.tokenId))
                         if (nft) {
@@ -86,10 +87,10 @@ export default function OnSaleContent() {
                         }
                     }
                 } else {
-                    console.error("Failed to buy NFT")
+                    custLog('error', '[on-sale] Failed to buy NFT')
                 }
             } catch (error) {
-                console.error("Error buying NFT:", error)
+                custLog('error', '[on-sale] Error buying NFT:', error)
             } finally {
                 setIsLoading(false)
             }
@@ -98,20 +99,20 @@ export default function OnSaleContent() {
 
             try {
                 // TODO: Implement actual purchase logic with contract interaction
-                console.log("Attempting to buy cross chain NFT with saleId:", saleId)
-                console.log("chainId", chainId)
-                console.log("destinationChainId", destinationChainId)
-                console.log("getContractAddresses", getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
+                custLog('debug', '[on-sale] Attempting to buy cross chain NFT with saleId:', saleId)
+                custLog('debug', '[on-sale] chainId', chainId)
+                custLog('debug', '[on-sale] destinationChainId', destinationChainId)
+                custLog('debug', '[on-sale] getContractAddresses', getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager)
 
                 //  const priceInEth = saleOrder?.priceInUsd
-                console.log("priceInEth", priceInEth)
+                custLog('debug', '[on-sale] priceInEth', priceInEth)
                 const { success, saleId: tokenIdResult } = await buyCrossSale(BigInt(saleId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCupManager, address as `0x${string}`, true, BigInt(destinationChainId), BigInt(priceInEth))
                 if (success) {
-                    console.log("Cross chain NFT bought successfully with saleId:", tokenIdResult)
+                    custLog('debug', '[on-sale] Cross chain NFT bought successfully with saleId:', tokenIdResult)
                     // Find the NFT sale by saleId first, then delete using internal ID
                     const nftSaleToDelete = nftSaleStore().listedSales.find(sale => sale.saleId === saleId)
                     if (nftSaleToDelete) {
-                        console.log("Deleting NFT sale with id:", nftSaleToDelete.id)
+                        custLog('debug', '[on-sale] Deleting NFT sale with id:', nftSaleToDelete.id)
                         deleteNFTSale(nftSaleToDelete.id)
                         const nft = getNFTByTokenId(Number(saleOrder?.tokenId))
                         if (nft) {
@@ -119,10 +120,10 @@ export default function OnSaleContent() {
                         }
                     }
                 } else {
-                    console.error("Failed to buy NFT")
+                    custLog('error', '[on-sale] Failed to buy NFT')
                 }
             } catch (error) {
-                console.error("Error buying NFT:", error)
+                custLog('error', '[on-sale] Error buying NFT:', error)
             } finally {
                 setIsLoading(false)
             }
@@ -138,6 +139,7 @@ export default function OnSaleContent() {
 
     // Get sorted NFTs
     const getSortedNfts = (): DeCupNFTSale[] => {
+        custLog("debug", "[on-sale] getSortedNfts", listedSales)
         return [...listedSales].sort((a, b) => {
             let aValue: string | number
             let bValue: string | number
@@ -265,11 +267,11 @@ export default function OnSaleContent() {
                                                 <tr key={nft.id} className="border-b hover:bg-muted/50">
                                                     <td className="p-4">
                                                         <div className="relative">
-                                                            {getChainIcon(nft.chain, "h-10 w-10 rounded-lg object-cover")}
+                                                            {getChainIcon(nft.destinationChain, "h-10 w-10 rounded-lg object-cover")}
                                                         </div>
                                                     </td>
                                                     <td className="p-4 font-mono">#{nft.saleId}</td>
-                                                    <td className="p-4 font-semibold">{nft.price} {nft.chain === "Sepolia" ? "ETH" : "AVAX"}</td>
+                                                    <td className="p-4 font-semibold">{nft.price} {nft.destinationChain === "Sepolia" ? "ETH" : "AVAX"}</td>
                                                     <td className="p-4">${nft.totalCollateral.toLocaleString()}</td>
                                                     <td className="p-4">
                                                         <div className="flex flex-wrap gap-1">

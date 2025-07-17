@@ -2,6 +2,8 @@ import { sendTransaction, readContract, writeContract, waitForTransactionReceipt
 import { config } from '@/config'
 import { erc20Abi, parseEventLogs } from 'viem'
 import { DeCupManagerABI, DeCupABI } from '@/lib/contracts/abis'
+import { getTransfers, getSales, getCrossSales, getCancelSales, getCancelCrossSales, getCrossBuys, getBuys, getSaleDeleteds } from '@/lib/graphql'
+import { custLog } from '../utils'
 
 /**
  * @notice Deposits a native token into the DeCup contract and mints an NFT
@@ -20,7 +22,7 @@ const depositNative = async (amount: bigint, contractAddress: string, walletAddr
             to: contractAddress as `0x${string}`,
             value: amount,
         })
-        console.log("[depositNative]Transaction hash:", tx)
+        custLog('debug', '[depositNative]Transaction hash:', tx)
 
         if (tx) {
             // Wait for transaction to be mined
@@ -44,14 +46,14 @@ const depositNative = async (amount: bigint, contractAddress: string, walletAddr
 
             if ((transferEvent as any)?.args?.tokenId !== undefined) {
                 const tokenId = (transferEvent as any).args.tokenId as bigint;
-                console.log('Minted tokenId:', tokenId.toString());
+                custLog('debug', '[depositNative] Minted tokenId:', tokenId.toString());
                 return {
                     success: true,
                     tokenId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[depositNative] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -59,7 +61,7 @@ const depositNative = async (amount: bigint, contractAddress: string, walletAddr
             }
         }
     } catch (error) {
-        console.error("Error depositing native token:", error)
+        custLog('error', '[depositNative] Error depositing native token:', error)
         throw error
     }
 
@@ -86,7 +88,7 @@ const addNativeCollateralToExistingCup = async (amount: bigint, contractAddress:
             args: [tokenId],
         })
 
-        console.log("[addNativeCollateralToExistingCup]Transaction hash:", tx)
+        custLog('debug', '[addNativeCollateralToExistingCup]Transaction hash:', tx)
 
         if (tx) {
             // Wait for transaction to be mined
@@ -110,14 +112,14 @@ const addNativeCollateralToExistingCup = async (amount: bigint, contractAddress:
 
             if ((transferEvent as any)?.args?.tokenId !== undefined) {
                 const tokenId = (transferEvent as any).args.tokenId as bigint;
-                console.log('Add collateral to existing cup tokenId:', tokenId.toString());
+                custLog('debug', '[addNativeCollateralToExistingCup] Add collateral to existing cup tokenId:', tokenId.toString());
                 return {
                     success: true,
                     tokenId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[addNativeCollateralToExistingCup] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -125,7 +127,7 @@ const addNativeCollateralToExistingCup = async (amount: bigint, contractAddress:
             }
         }
     } catch (error) {
-        console.error("Error depositing native token:", error)
+        custLog('error', '[addNativeCollateralToExistingCup] Error depositing native token:', error)
         throw error
     }
 
@@ -145,10 +147,10 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
     let success = false
     let tokenId: bigint | undefined
 
-    console.log("amount", amount)
-    console.log("tokenAddress", tokenAddress)
-    console.log("spenderAddress", contractAddress)
-    console.log("walletAddress", walletAddress)
+    custLog('debug', '[depositERC20] amount:', amount)
+    custLog('debug', '[depositERC20] tokenAddress:', tokenAddress)
+    custLog('debug', '[depositERC20] spenderAddress:', contractAddress)
+    custLog('debug', '[depositERC20] walletAddress:', walletAddress)
 
     try {
 
@@ -157,7 +159,7 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
             abi: erc20Abi,
             functionName: 'decimals',
         })
-        console.log("tokenDecimals", tokenDecimals)
+        custLog('debug', '[depositERC20] tokenDecimals:', tokenDecimals)
 
         const allowance = await readContract(config, {
             address: tokenAddress as `0x${string}`,
@@ -166,7 +168,7 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
             args: [walletAddress as `0x${string}`, contractAddress as `0x${string}`],
         })
 
-        console.log("allowance", allowance)
+        custLog('debug', '[depositERC20] allowance:', allowance)
         //10 000 000 000 000 000
         //10 000 000 000 000 000 000 000
         // Convert amount to token's smallest unit (account for token decimals)
@@ -181,7 +183,7 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
             })
         }
 
-        console.log("amountInTokenDecimals", amountInTokenDecimals)
+        custLog('debug', '[depositERC20] amountInTokenDecimals:', amountInTokenDecimals)
 
         // This would typically be a contract call, not a direct transaction
         const tx = await writeContract(config, {
@@ -191,7 +193,7 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
             args: [tokenAddress, amountInTokenDecimals],
         })
 
-        console.log("[depositERC20]Transaction hash:", tx)
+        custLog('debug', '[depositERC20]Transaction hash:', tx)
 
 
         if (tx) {
@@ -215,14 +217,14 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
 
             if ((transferEvent as any)?.args?.tokenId !== undefined) {
                 const tokenId = (transferEvent as any).args.tokenId as bigint;
-                console.log('Minted tokenId:', tokenId.toString());
+                custLog('debug', '[depositERC20] Minted tokenId:', tokenId.toString());
                 return {
                     success: true,
                     tokenId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[depositERC20] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -230,7 +232,7 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
             }
         }
     } catch (error) {
-        console.error("Error depositing ERC20 token:", error)
+        custLog('error', '[depositERC20] Error depositing ERC20 token:', error)
         throw error
     }
 
@@ -246,14 +248,14 @@ const depositERC20 = async (amount: bigint, tokenAddress: string, contractAddres
  * @returns { success: boolean, tokenId?: bigint }
  */
 const addTokenCollateralToExistingCup = async (amount: bigint, tokenAddress: string, contractAddress: string, walletAddress?: string, tokenId?: bigint): Promise<{ success: boolean; tokenId?: bigint }> => {
-    console.log("addTokenCollateralToExistingCup")
+    custLog('debug', '[addTokenCollateralToExistingCup]')
     let success = false
     //let tokenId: bigint | undefined
 
-    console.log("amount", amount)
-    console.log("tokenAddress", tokenAddress)
-    console.log("spenderAddress", contractAddress)
-    console.log("walletAddress", walletAddress)
+    custLog('debug', '[addTokenCollateralToExistingCup] amount:', amount)
+    custLog('debug', '[addTokenCollateralToExistingCup] tokenAddress:', tokenAddress)
+    custLog('debug', '[addTokenCollateralToExistingCup] spenderAddress:', contractAddress)
+    custLog('debug', '[addTokenCollateralToExistingCup] walletAddress:', walletAddress)
 
     try {
 
@@ -262,7 +264,7 @@ const addTokenCollateralToExistingCup = async (amount: bigint, tokenAddress: str
             abi: erc20Abi,
             functionName: 'decimals',
         })
-        console.log("tokenDecimals", tokenDecimals)
+        custLog('debug', '[addTokenCollateralToExistingCup] tokenDecimals:', tokenDecimals)
 
         const allowance = await readContract(config, {
             address: tokenAddress as `0x${string}`,
@@ -271,7 +273,7 @@ const addTokenCollateralToExistingCup = async (amount: bigint, tokenAddress: str
             args: [walletAddress as `0x${string}`, contractAddress as `0x${string}`],
         })
 
-        console.log("allowance", allowance)
+        custLog('debug', '[addTokenCollateralToExistingCup] allowance:', allowance)
         //10 000 000 000 000 000
         //10 000 000 000 000 000 000 000
         // Convert amount to token's smallest unit (account for token decimals)
@@ -286,7 +288,7 @@ const addTokenCollateralToExistingCup = async (amount: bigint, tokenAddress: str
             })
         }
 
-        console.log("amountInTokenDecimals", amountInTokenDecimals)
+        custLog('debug', '[addTokenCollateralToExistingCup] amountInTokenDecimals:', amountInTokenDecimals)
 
         // This would typically be a contract call, not a direct transaction
         const tx = await writeContract(config, {
@@ -296,7 +298,7 @@ const addTokenCollateralToExistingCup = async (amount: bigint, tokenAddress: str
             args: [tokenAddress, amountInTokenDecimals, tokenId],
         })
 
-        console.log("[addTokenCollateralToExistingCup]Transaction hash:", tx)
+        custLog('debug', '[addTokenCollateralToExistingCup]Transaction hash:', tx)
 
         if (tx) {
             const receipt = await waitForTransactionReceipt(config, {
@@ -319,14 +321,14 @@ const addTokenCollateralToExistingCup = async (amount: bigint, tokenAddress: str
 
             if ((transferEvent as any)?.args?.tokenId !== undefined) {
                 const tokenId = (transferEvent as any).args.tokenId as bigint;
-                console.log('Add ERC20 collateral to existing cup tokenId:', tokenId.toString());
+                custLog('debug', '[addTokenCollateralToExistingCup] Add ERC20 collateral to existing cup tokenId:', tokenId.toString());
                 return {
                     success: true,
                     tokenId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[addTokenCollateralToExistingCup] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -334,14 +336,19 @@ const addTokenCollateralToExistingCup = async (amount: bigint, tokenAddress: str
             }
         }
     } catch (error) {
-        console.error("Error depositing ERC20 token:", error)
+        custLog('error', '[addTokenCollateralToExistingCup] Error depositing ERC20 token:', error)
         throw error
     }
 
     return { success, tokenId }
 }
 
-
+/**
+ * @notice Withdraws native tokens from the DeCupManager contract
+ * @param amount The amount of tokens to withdraw
+ * @param contractAddress The address of the DeCupManager contract
+ * @returns { success: boolean }
+ */
 const withdrawNativeDeCupManager = async (amount: bigint, contractAddress: string): Promise<boolean> => {
     let success = false
 
@@ -354,14 +361,14 @@ const withdrawNativeDeCupManager = async (amount: bigint, contractAddress: strin
         })
 
 
-        console.log("[withdrawNativeDeCupManager]Transaction hash:", tx)
+        custLog('debug', '[withdrawNativeDeCupManager]Transaction hash:', tx)
 
 
         if (tx) {
             success = true
         }
     } catch (error) {
-        console.error("Error withdrawing native token:", error)
+        custLog('error', '[withdrawNativeDeCupManager] Error withdrawing native token:', error)
         throw error
     }
 
@@ -390,7 +397,7 @@ const createSale = async (tokenId: bigint, beneficialWallet: string, contractAdd
             args: [tokenId, beneficialWallet],
         })
 
-        console.log("[createSale]Transaction hash:", tx)
+        custLog('debug', '[createSale]Transaction hash:', tx)
 
         if (tx) {
             const receipt = await waitForTransactionReceipt(config, {
@@ -416,14 +423,14 @@ const createSale = async (tokenId: bigint, beneficialWallet: string, contractAdd
 
             if ((transferEvent as any)?.args?.saleId !== undefined) {
                 const saleId = (transferEvent as any).args.saleId as bigint;
-                console.log('Minted tokenId:', saleId.toString());
+                custLog('debug', '[createSale] Minted tokenId:', saleId.toString());
                 return {
                     success: true,
                     saleId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[createSale] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -431,7 +438,7 @@ const createSale = async (tokenId: bigint, beneficialWallet: string, contractAdd
             }
         }
     } catch (error) {
-        console.error("Error create DeCup NFT Manager sale for a token:", error)
+        custLog('error', '[createSale] Error create DeCup NFT Manager sale for a token:', error)
         throw error
     }
 
@@ -449,16 +456,16 @@ const createCrossSale = async (tokenId: bigint, beneficialWallet: string, contra
     let success = false
     //const priceInWei = BigInt((priceInUsd * 10 ** 8) / 10 ** 2)
 
-    console.log("createCrossSale:")
-    console.log("tokenId", tokenId)
-    console.log("beneficialWallet", beneficialWallet)
-    console.log("contractAddress", contractAddress)
-    console.log("sourceChainId", sourceChainId)
-    console.log("destinationChainId", destinationChainId)
-    console.log("priceInUsd", priceInUsd)
+    custLog('debug', '[createCrossSale]')
+    custLog('debug', '[createCrossSale] tokenId:', tokenId)
+    custLog('debug', '[createCrossSale] beneficialWallet:', beneficialWallet)
+    custLog('debug', '[createCrossSale] contractAddress:', contractAddress)
+    custLog('debug', '[createCrossSale] sourceChainId:', sourceChainId)
+    custLog('debug', '[createCrossSale] destinationChainId:', destinationChainId)
+    custLog('debug', '[createCrossSale] priceInUsd:', priceInUsd)
 
     const { success: successGetCcipCollateralInEth, collateralEth: cCipCollateralInEth } = await getCcipCollateralInEth(contractAddress)
-    console.log("cCipCollateralInEth", cCipCollateralInEth)
+    custLog('debug', '[createCrossSale] cCipCollateralInEth:', cCipCollateralInEth)
 
     try {
         const tx = await writeContract(config, {
@@ -469,7 +476,7 @@ const createCrossSale = async (tokenId: bigint, beneficialWallet: string, contra
             args: [tokenId, beneficialWallet, destinationChainId, priceInUsd],
         })
 
-        console.log("[createCrossSale]Transaction hash:", tx)
+        custLog('debug', '[createCrossSale]Transaction hash:', tx)
 
         if (tx) {
             const receipt = await waitForTransactionReceipt(config, {
@@ -495,14 +502,14 @@ const createCrossSale = async (tokenId: bigint, beneficialWallet: string, contra
 
             if ((transferEvent as any)?.args?.tokenId !== undefined) {
                 const tokenId = (transferEvent as any).args.tokenId as bigint;
-                console.log('createCrossSale tokenId:', tokenId.toString());
+                custLog('debug', '[createCrossSale] createCrossSale tokenId:', tokenId.toString());
                 return {
                     success: true,
                     tokenId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[createCrossSale] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -510,7 +517,7 @@ const createCrossSale = async (tokenId: bigint, beneficialWallet: string, contra
             }
         }
     } catch (error) {
-        console.error("Error createCrossSale sale:", error)
+        custLog('error', '[createCrossSale] Error createCrossSale sale:', error)
         throw error
     }
 
@@ -526,7 +533,9 @@ const createCrossSale = async (tokenId: bigint, beneficialWallet: string, contra
 const cancelCrossSale = async (saleId: bigint, contractAddress: string): Promise<{ success: boolean; saleId?: bigint }> => {
 
     let success = false
-    console.log("cancelCrossSale", saleId, contractAddress)
+    custLog('debug', '[cancelCrossSale] saleId:', saleId)
+    custLog('debug', '[cancelCrossSale] contractAddress:', contractAddress)
+
     try {
         const tx = await writeContract(config, {
             address: contractAddress as `0x${string}`,
@@ -535,7 +544,7 @@ const cancelCrossSale = async (saleId: bigint, contractAddress: string): Promise
             args: [saleId],
         })
 
-        console.log("[cancelCrossSale]Transaction hash:", tx)
+        custLog('debug', '[cancelCrossSale]Transaction hash:', tx)
 
         if (tx) {
             const receipt = await waitForTransactionReceipt(config, {
@@ -557,14 +566,14 @@ const cancelCrossSale = async (saleId: bigint, contractAddress: string): Promise
 
             if ((transferEvent as any)?.args?.saleId !== undefined) {
                 const saleId = (transferEvent as any).args.saleId as bigint;
-                console.log('Canceled saleId:', saleId.toString());
+                custLog('debug', '[cancelCrossSale] Canceled saleId:', saleId.toString());
                 return {
                     success: true,
                     saleId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[cancelCrossSale] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -572,7 +581,7 @@ const cancelCrossSale = async (saleId: bigint, contractAddress: string): Promise
             }
         }
     } catch (error) {
-        console.error("Error removing DeCup NFT sale:", error)
+        custLog('error', '[cancelCrossSale] Error removing DeCup NFT sale:', error)
         throw error
     }
 
@@ -597,7 +606,7 @@ const cancelSale = async (saleId: bigint, contractAddress: string): Promise<{ su
             args: [saleId],
         })
 
-        console.log("[cancelCrossSale]Transaction hash:", tx)
+        custLog('debug', '[cancelCrossSale]Transaction hash:', tx)
 
         if (tx) {
             const receipt = await waitForTransactionReceipt(config, {
@@ -619,14 +628,14 @@ const cancelSale = async (saleId: bigint, contractAddress: string): Promise<{ su
 
             if ((transferEvent as any)?.args?.saleId !== undefined) {
                 const saleId = (transferEvent as any).args.saleId as bigint;
-                console.log('Canceled saleId:', saleId.toString());
+                custLog('debug', '[cancelCrossSale] Canceled saleId:', saleId.toString());
                 return {
                     success: true,
                     saleId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[cancelCrossSale] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -634,7 +643,7 @@ const cancelSale = async (saleId: bigint, contractAddress: string): Promise<{ su
             }
         }
     } catch (error) {
-        console.error("Error removing DeCup NFT sale:", error)
+        custLog('error', '[cancelCrossSale] Error removing DeCup NFT sale:', error)
         throw error
     }
 
@@ -660,7 +669,7 @@ const burn = async (tokenId: bigint, contractAddress: string, walletAddress: str
             args: [tokenId],
         })
 
-        console.log("[burn]Transaction hash:", tx)
+        custLog('debug', '[burn]Transaction hash:', tx)
 
         if (tx) {
             const receipt = await waitForTransactionReceipt(config, {
@@ -684,14 +693,14 @@ const burn = async (tokenId: bigint, contractAddress: string, walletAddress: str
 
             if ((transferEvent as any)?.args?.tokenId !== undefined) {
                 const tokenId = (transferEvent as any).args.tokenId as bigint;
-                console.log('Burn tokenId:', tokenId.toString());
+                custLog('debug', '[burn] Burn tokenId:', tokenId.toString());
                 return {
                     success: true,
                     tokenId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[burn] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -699,7 +708,7 @@ const burn = async (tokenId: bigint, contractAddress: string, walletAddress: str
             }
         }
     } catch (error) {
-        console.error("Error removing DeCup NFT sale:", error)
+        custLog('error', '[burn] Error removing DeCup NFT sale:', error)
         throw error
     }
 
@@ -739,7 +748,7 @@ const validateSaleOrder = async (saleId: bigint, contractAddress: string): Promi
             saleOrder: saleOrder
         };
     } catch (error) {
-        console.error("Error validating sale order:", error);
+        custLog('error', '[validateSaleOrder] Error validating sale order:', error);
         return {
             exists: false,
             error: `Failed to validate sale order: ${error}`
@@ -756,7 +765,12 @@ const validateSaleOrder = async (saleId: bigint, contractAddress: string): Promi
  * @param amount The amount of the token to buy
  */
 const buy = async (saleId: bigint, contractAddress: string, walletAddress: string, isBurn: boolean, amount: bigint): Promise<{ success: boolean; saleId?: bigint }> => {
-    console.log("buy", saleId, contractAddress, walletAddress, isBurn, amount)
+    custLog('debug', '[buy]')
+    custLog('debug', '[buy] saleId:', saleId)
+    custLog('debug', '[buy] contractAddress:', contractAddress)
+    custLog('debug', '[buy] walletAddress:', walletAddress)
+    custLog('debug', '[buy] isBurn:', isBurn)
+    custLog('debug', '[buy] amount:', amount)
 
     // Validate sale order exists before attempting to buy
     const validation = await validateSaleOrder(saleId, contractAddress);
@@ -764,7 +778,7 @@ const buy = async (saleId: bigint, contractAddress: string, walletAddress: strin
         throw new Error(validation.error || `Sale ID ${saleId.toString()} does not exist`);
     }
 
-    console.log("Sale order validation passed:", validation.saleOrder);
+    custLog('debug', '[buy] Sale order validation passed:', validation.saleOrder);
 
     let success = false
 
@@ -777,7 +791,7 @@ const buy = async (saleId: bigint, contractAddress: string, walletAddress: strin
             args: [saleId, walletAddress, isBurn],
         })
 
-        console.log("[buy]Transaction hash:", tx)
+        custLog('debug', '[buy]Transaction hash:', tx)
 
 
         if (tx) {
@@ -802,14 +816,14 @@ const buy = async (saleId: bigint, contractAddress: string, walletAddress: strin
 
             if ((transferEvent as any)?.args?.saleId !== undefined) {
                 const saleId = (transferEvent as any).args.saleId as bigint;
-                console.log('Bought tokenId:', saleId.toString());
+                custLog('debug', '[buy] Bought tokenId:', saleId.toString());
                 return {
                     success: true,
                     saleId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[buy] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -817,8 +831,8 @@ const buy = async (saleId: bigint, contractAddress: string, walletAddress: strin
             }
         }
     } catch (error) {
-        console.error("Error transfering NFT and removing from sale:", error)
-        throw error
+        custLog('error', '[buy] Error transfering NFT and removing from sale:', error)
+        // throw error
     }
 
     return { success, saleId }
@@ -834,7 +848,13 @@ const buy = async (saleId: bigint, contractAddress: string, walletAddress: strin
  */
 const buyCrossSale = async (saleId: bigint, contractAddress: string, walletAddress: string, isBurn: boolean, destinationChainId: bigint, amount: bigint): Promise<{ success: boolean; saleId?: bigint }> => {
 
-    console.log("buyCrossSale", saleId, contractAddress, walletAddress, isBurn, amount, destinationChainId)
+    custLog('debug', '[buyCrossSale]')
+    custLog('debug', '[buyCrossSale] saleId:', saleId)
+    custLog('debug', '[buyCrossSale] contractAddress:', contractAddress)
+    custLog('debug', '[buyCrossSale] walletAddress:', walletAddress)
+    custLog('debug', '[buyCrossSale] isBurn:', isBurn)
+    custLog('debug', '[buyCrossSale] amount:', amount)
+    custLog('debug', '[buyCrossSale] destinationChainId:', destinationChainId)
 
     // Validate sale order exists before attempting to buy
     const validation = await validateSaleOrder(saleId, contractAddress);
@@ -842,7 +862,7 @@ const buyCrossSale = async (saleId: bigint, contractAddress: string, walletAddre
         throw new Error(validation.error || `Sale ID ${saleId.toString()} does not exist`);
     }
 
-    console.log("Sale order validation passed:", validation.saleOrder);
+    custLog('debug', '[buyCrossSale] Sale order validation passed:', validation.saleOrder);
 
     let success = false
 
@@ -855,7 +875,7 @@ const buyCrossSale = async (saleId: bigint, contractAddress: string, walletAddre
             args: [saleId, walletAddress, destinationChainId, isBurn],
         })
 
-        console.log("[buyCrossSale]Transaction hash:", tx)
+        custLog('debug', '[buyCrossSale]Transaction hash:', tx)
 
 
         if (tx) {
@@ -879,14 +899,14 @@ const buyCrossSale = async (saleId: bigint, contractAddress: string, walletAddre
             );
             if ((transferEvent as any)?.args?.saleId !== undefined) {
                 const saleId = (transferEvent as any).args.tokenId as bigint;
-                console.log('Bought tokenId:', saleId.toString());
+                custLog('debug', '[buyCrossSale] Bought tokenId:', saleId.toString());
                 return {
                     success: true,
                     saleId,
                     // transactionHash: txHash,
                 };
             } else {
-                console.warn('Transfer event found, but tokenId not parsed.');
+                custLog('warn', '[buyCrossSale] Transfer event found, but tokenId not parsed.');
                 return {
                     success: true, // Transaction succeeded, but no tokenId
                     //transactionHash: txHash,
@@ -894,8 +914,8 @@ const buyCrossSale = async (saleId: bigint, contractAddress: string, walletAddre
             }
         }
     } catch (error) {
-        console.error("Error transfering NFT and removing from sale:", error)
-        throw error
+        custLog('error', '[buyCrossSale] Error transfering NFT and removing from sale:', error)
+        //throw error
     }
 
     return { success, saleId }
@@ -920,7 +940,7 @@ const getTokenPriceInUsd = async (tokenId: bigint, contractAddress: string): Pro
             args: [tokenId],
         })
 
-        console.log("[getTokenPriceInUsd]Transaction hash:", tokenPrice)
+        custLog('debug', '[getTokenPriceInUsd]Transaction hash:', tokenPrice)
 
 
         if (tokenPrice) {
@@ -928,8 +948,8 @@ const getTokenPriceInUsd = async (tokenId: bigint, contractAddress: string): Pro
             price = tokenPrice as number
         }
     } catch (error) {
-        console.error("Error getting token price in USD:", error)
-        throw error
+        custLog('error', '[getTokenPriceInUsd] Error getting token price in USD:', error)
+        //throw error
     }
 
     return { success, price }
@@ -959,8 +979,8 @@ const getCollateralBalance = async (tokenId: bigint, contractAddress: string, to
             balance = collateralBalance as number
         }
     } catch (error) {
-        console.error("Error getting token collateral balance:", error)
-        throw error
+        custLog('error', '[getCollateralBalance] Error getting token collateral balance:', error)
+        //throw error
     }
 
     return { success, balance }
@@ -973,14 +993,17 @@ const getCollateralBalance = async (tokenId: bigint, contractAddress: string, to
  * @param walletAddress The address of the wallet to get the NFTs from
  * @returns { success: boolean, nfts: bigint[] }
  */
-const getMyDeCupNfts = async (contractAddress: string, walletAddress: string): Promise<{ success: boolean; nfts: bigint[] }> => {
+const getMyDeCupNfts = async (contractAddress: string, walletAddress: string, chainId: number): Promise<{ success: boolean; nfts: bigint[] }> => {
     try {
         const publicClient = getPublicClient(config);
 
         if (!publicClient) {
+            custLog('error', '[interactions:getMyDeCupNfts] publicClient not available')
             throw new Error('Public client not available');
         }
 
+
+        //FETC NFTS FROM LOGS
         const currentBlock = await publicClient.getBlockNumber();
         const allTokenIds: bigint[] = [];
 
@@ -997,7 +1020,7 @@ const getMyDeCupNfts = async (contractAddress: string, walletAddress: string): P
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching Transfer events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getMyDeCupNfts] Fetching Transfer events from block ${fromBlock} to ${actualToBlock}`)
 
                 const logs = await publicClient.getLogs({
                     address: contractAddress as `0x${string}`,
@@ -1033,8 +1056,26 @@ const getMyDeCupNfts = async (contractAddress: string, walletAddress: string): P
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('error', `[interactions:getMyDeCupNfts] Error fetching logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
                 // Continue with next chunk even if one fails
+            }
+        }
+
+        // Get historical transfers from the graphql database
+        const transfers = await getTransfers(chainId)
+        custLog('debug', '[interactions:getMyDeCupNfts] Logs NFTs count', allTokenIds.length)
+        custLog('debug', '[interactions:getMyDeCupNfts] GraphQL NFTs count', transfers.data?.transfers?.length)
+        custLog('debug', '[interactions:getMyDeCupNfts] GraphQL transfers', transfers)
+
+        // Add tokenIds from transfers data
+        if (transfers.data?.transfers) {
+            for (const transfer of transfers.data.transfers) {
+                const tokenId = BigInt(transfer.tokenId)
+                if (!allTokenIds.includes(tokenId) &&
+                    transfer.to.toLowerCase() === walletAddress.toLowerCase()) {
+                    allTokenIds.push(tokenId)
+                }
+
             }
         }
 
@@ -1054,18 +1095,18 @@ const getMyDeCupNfts = async (contractAddress: string, walletAddress: string): P
                 }
             } catch (error) {
                 // Token might have been burned or doesn't exist anymore
-                console.warn(`Token ${tokenId.toString()} might have been burned:`, error);
+                custLog('warn', `[interactions:getMyDeCupNfts] Token ${tokenId.toString()} might have been burned:`);//, error);
             }
         }
 
-        console.log(`Found ${allTokenIds.length} tokens minted to wallet, ${currentlyOwnedNfts.length} currently owned`);
+        custLog('debug', `[interactions:getMyDeCupNfts] Found ${allTokenIds.length} tokens minted to wallet, ${currentlyOwnedNfts.length} currently owned`);
 
         return {
             success: true,
             nfts: currentlyOwnedNfts,
         };
     } catch (error) {
-        console.error("Error getting DeCup NFTs:", error);
+        custLog('error', `[interactions:getMyDeCupNfts] Error getting DeCup NFTs:`, error);
         return {
             success: false,
             nfts: [],
@@ -1097,8 +1138,8 @@ const getAssetsInfo = async (tokenId: bigint, contractAddress: string): Promise<
             assetsInfo = info as string[]
         }
     } catch (error) {
-        console.error("Error getting token assets list:", error)
-        throw error
+        custLog('error', '[getAssetsInfo] Error getting token assets list:', error)
+        //throw error
     }
 
     return { success, assetsInfo }
@@ -1109,11 +1150,13 @@ const getAssetsInfo = async (tokenId: bigint, contractAddress: string): Promise<
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, saleOrders: any[] }
  */
-const getSaleOrderList = async (contractAddress: string): Promise<{ success: boolean; saleOrders: any[] }> => {
+const getSaleOrderList = async (contractAddress: string, chainId: number): Promise<{ success: boolean; saleOrders: any[] }> => {
+    custLog('debug', '[interactions:getSaleOrderList] input', { contractAddress, chainId })
     try {
         const publicClient = getPublicClient(config);
 
         if (!publicClient) {
+            custLog('error', '[interactions:getSaleOrderList] publicClient not available')
             throw new Error('Public client not available');
         }
 
@@ -1133,7 +1176,7 @@ const getSaleOrderList = async (contractAddress: string): Promise<{ success: boo
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching CreateSale events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getSaleOrderList] Fetching CreateSale events from block ${fromBlock} to ${actualToBlock}`);
 
                 // Query CreateSale events
                 const logs = await publicClient.getLogs({
@@ -1152,6 +1195,7 @@ const getSaleOrderList = async (contractAddress: string): Promise<{ success: boo
                     abi: DeCupManagerABI.abi,
                     logs: logs,
                 });
+
 
                 // Extract sale orders from CreateSale events
                 for (const log of parsedLogs) {
@@ -1181,19 +1225,50 @@ const getSaleOrderList = async (contractAddress: string): Promise<{ success: boo
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching CreateSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('error', '[interactions:getSaleOrderList] error', chunkError)
                 // Continue with next chunk even if one fails
             }
         }
 
-        console.log(`Found ${saleOrders.length} sale orders`);
+
+        // Get historical sale orders from the graphql database
+        const sales = await getSales(chainId)
+        custLog('debug', '[interactions:getSaleOrderList] Logs sales count', saleOrders.length)
+        custLog('debug', '[interactions:getSaleOrderList] GraphQL sales count', sales.data?.createSales?.length)
+        custLog('debug', '[interactions:getSaleOrderList] GraphQL sales', sales)
+
+        // Add sale orders from sales data
+        if (sales.data?.createSales) {
+            for (const sale of sales.data.createSales) {
+                const saleOrder = {
+                    saleId: sale.saleId,
+                    tokenId: sale.tokenId,
+                    sellerAddress: sale.sellerAddress,
+                    sourceChainId: sale.sourceChainId,
+                    destinationChainId: sale.destinationChainId,
+                    priceInUsd: sale.priceInUsd,
+                }
+
+                // Check if this sale order already exists to avoid duplicates
+                const existingSale = saleOrders.find(order =>
+                    order.saleId === saleOrder.saleId &&
+                    order.tokenId === saleOrder.tokenId
+                );
+
+                if (!existingSale) {
+                    saleOrders.push(saleOrder);
+                }
+            }
+        }
+
+        custLog('debug', '[interactions:getSaleOrderList] output', { success: true, saleOrders: saleOrders })
 
         return {
             success: true,
             saleOrders: saleOrders,
         };
     } catch (error) {
-        console.error("Error getting sale order list:", error);
+        custLog('error', '[interactions:getSaleOrderList] error', error)
         return {
             success: false,
             saleOrders: [],
@@ -1206,7 +1281,7 @@ const getSaleOrderList = async (contractAddress: string): Promise<{ success: boo
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, canceldOrders: any[] }
  */
-const getCreateCrossSaleOrderList = async (contractAddress: string): Promise<{ success: boolean; crossSaleOrders: any[] }> => {
+const getCreateCrossSaleOrderList = async (contractAddress: string, chainId: number): Promise<{ success: boolean; crossSaleOrders: any[] }> => {
     try {
         const publicClient = getPublicClient(config);
 
@@ -1230,7 +1305,7 @@ const getCreateCrossSaleOrderList = async (contractAddress: string): Promise<{ s
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching CreateCrossSale events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getCreateCrossSaleOrderList] Fetching CreateCrossSale events from block ${fromBlock} to ${actualToBlock}`);
 
                 // Query CreateSale events
                 const logs = await publicClient.getLogs({
@@ -1277,19 +1352,42 @@ const getCreateCrossSaleOrderList = async (contractAddress: string): Promise<{ s
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching CreateCrossSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('warn', `[interactions:getCreateCrossSaleOrderList] Error fetching CreateCrossSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
                 // Continue with next chunk even if one fails
             }
         }
 
-        console.log(`Found ${crossSaleOrders.length} cross sale orders`);
+        // Get historical cross sale orders from the graphql database
+        const crossSales = await getCrossSales(chainId)
+        custLog('debug', '[interactions:getCreateCrossSaleOrderList] crossSales', crossSales)
+
+        // Add cross sale orders from cross sales data
+        if (crossSales.data?.createCrossSales) {
+            for (const crossSale of crossSales.data.createCrossSales) {
+                const crossSaleOrder = {
+                    saleId: crossSale.saleId,
+                    tokenId: crossSale.tokenId,
+                }
+
+                // Check if this cross sale order already exists to avoid duplicates
+                const existingCrossSale = crossSaleOrders.find(order =>
+                    order.tokenId === crossSaleOrder.tokenId
+                );
+
+                if (!existingCrossSale) {
+                    crossSaleOrders.push(crossSaleOrder);
+                }
+            }
+        }
+
+        custLog('debug', `[interactions:getCreateCrossSaleOrderList] Found ${crossSaleOrders.length} cross sale orders`)
 
         return {
             success: true,
             crossSaleOrders: crossSaleOrders,
         };
     } catch (error) {
-        console.error("Error getting sale order list:", error);
+        custLog('error', '[interactions:getCreateCrossSaleOrderList] Error getting sale order list:', error)
         return {
             success: false,
             crossSaleOrders: [],
@@ -1301,7 +1399,7 @@ const getCreateCrossSaleOrderList = async (contractAddress: string): Promise<{ s
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, canceldOrders: any[] }
  */
-const getCanceledSaleOrderList = async (contractAddress: string): Promise<{ success: boolean; canceldOrders: any[] }> => {
+const getCanceledSaleOrderList = async (contractAddress: string, chainId: number): Promise<{ success: boolean; canceldOrders: any[] }> => {
     try {
         const publicClient = getPublicClient(config);
 
@@ -1325,7 +1423,7 @@ const getCanceledSaleOrderList = async (contractAddress: string): Promise<{ succ
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching CreateSale events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getCanceledSaleOrderList] Fetching CreateSale events from block ${fromBlock} to ${actualToBlock}`);
 
                 // Query CreateSale events
                 const logs = await publicClient.getLogs({
@@ -1367,19 +1465,36 @@ const getCanceledSaleOrderList = async (contractAddress: string): Promise<{ succ
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching CreateSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('warn', `[interactions:getCanceledSaleOrderList] Error fetching CreateSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
                 // Continue with next chunk even if one fails
             }
         }
 
-        console.log(`Found ${canceldOrders.length} canceld orders`);
+        // Get historical canceld orders from the graphql database
+        const cancelSales = await getCancelSales(chainId)
+        custLog('debug', '[interactions:getCanceledSaleOrderList] cancelSales', cancelSales)
+        // Add canceld orders from canceld orders data
+        if (cancelSales.data?.cancelSales) {
+            for (const cancelSale of cancelSales.data.cancelSales) {
+                // Check if this canceld order already exists to avoid duplicates
+                const existingCanceldOrder = canceldOrders.find(order =>
+                    order.saleId === cancelSale.saleId
+                );
+
+                if (!existingCanceldOrder) {
+                    canceldOrders.push(cancelSale);
+                }
+            }
+        }
+
+        custLog('debug', `[interactions:getCanceledSaleOrderList] Found ${canceldOrders.length} canceld orders`)
 
         return {
             success: true,
             canceldOrders: canceldOrders,
         };
     } catch (error) {
-        console.error("Error getting sale order list:", error);
+        custLog('error', '[interactions:getCanceledSaleOrderList] Error getting sale order list:', error)
         return {
             success: false,
             canceldOrders: [],
@@ -1392,7 +1507,7 @@ const getCanceledSaleOrderList = async (contractAddress: string): Promise<{ succ
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, canceldOrders: any[] }
  */
-const getCanceledCrossSaleOrderList = async (contractAddress: string): Promise<{ success: boolean; canceldCrossOrders: any[] }> => {
+const getCanceledCrossSaleOrderList = async (contractAddress: string, chainId: number): Promise<{ success: boolean; canceldCrossOrders: any[] }> => {
     try {
         const publicClient = getPublicClient(config);
 
@@ -1416,7 +1531,7 @@ const getCanceledCrossSaleOrderList = async (contractAddress: string): Promise<{
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching CancelCrossSale events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getCanceledCrossSaleOrderList] Fetching CancelCrossSale events from block ${fromBlock} to ${actualToBlock}`);
 
                 // Query CreateSale events
                 const logs = await publicClient.getLogs({
@@ -1458,19 +1573,36 @@ const getCanceledCrossSaleOrderList = async (contractAddress: string): Promise<{
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching CancelCrossSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('warn', `[interactions:getCanceledCrossSaleOrderList] Error fetching CancelCrossSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
                 // Continue with next chunk even if one fails
             }
         }
 
-        console.log(`Found ${canceldCrossOrders.length} canceld cross sale orders`);
+        // Get historical canceld cross sale orders from the graphql database
+        const cancelCrossSales = await getCancelCrossSales(chainId)
+        custLog('debug', '[interactions:getCanceledCrossSaleOrderList] cancelCrossSales', cancelCrossSales)
+        // Add canceld cross sale orders from canceld cross sale orders data
+        if (cancelCrossSales.data?.cancelCrossSales) {
+            for (const cancelCrossSale of cancelCrossSales.data.cancelCrossSales) {
+                // Check if this canceld cross sale order already exists to avoid duplicates    
+                const existingCancelCrossSale = canceldCrossOrders.find(order =>
+                    order.tokenId === cancelCrossSale.tokenId
+                );
+
+                if (!existingCancelCrossSale) {
+                    canceldCrossOrders.push(cancelCrossSale);
+                }
+            }
+        }
+
+        custLog('debug', `[interactions:getCanceledCrossSaleOrderList] Found ${canceldCrossOrders.length} canceld cross sale orders`)
 
         return {
             success: true,
             canceldCrossOrders: canceldCrossOrders,
         };
     } catch (error) {
-        console.error("Error getting canceld cross sale order list:", error);
+        custLog('error', '[interactions:getCanceledCrossSaleOrderList] Error getting canceld cross sale order list:', error)
         return {
             success: false,
             canceldCrossOrders: [],
@@ -1483,7 +1615,7 @@ const getCanceledCrossSaleOrderList = async (contractAddress: string): Promise<{
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, canceldOrders: any[] }
  */
-const getBoughtCrossSaleOrders = async (contractAddress: string): Promise<{ success: boolean; boughtCrossOrders: any[] }> => {
+const getBoughtCrossSaleOrders = async (contractAddress: string, chainId: number): Promise<{ success: boolean; boughtCrossOrders: any[] }> => {
     try {
         const publicClient = getPublicClient(config);
 
@@ -1507,7 +1639,7 @@ const getBoughtCrossSaleOrders = async (contractAddress: string): Promise<{ succ
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching BuyCrossSale events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getBoughtCrossSaleOrders] Fetching BuyCrossSale events from block ${fromBlock} to ${actualToBlock}`);
 
                 // Query CreateSale events
                 const logs = await publicClient.getLogs({
@@ -1552,19 +1684,36 @@ const getBoughtCrossSaleOrders = async (contractAddress: string): Promise<{ succ
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching BuyCrossSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('warn', `[interactions:getBoughtCrossSaleOrders] Error fetching BuyCrossSale logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
                 // Continue with next chunk even if one fails
             }
         }
 
-        console.log(`Found ${boughtCrossOrders.length} bought cross sale orders`);
+        // Get historical bought cross sale orders from the graphql database
+        const boughtCrossSales = await getCrossBuys(chainId)
+        custLog('debug', '[interactions:getBoughtCrossSaleOrders] boughtCrossSales', boughtCrossSales)
+        // Add bought cross sale orders from bought cross sale orders data
+        if (boughtCrossSales.data?.crossBuys) {
+            for (const boughtCrossSale of boughtCrossSales.data.crossBuys) {
+                // Check if this bought cross sale order already exists to avoid duplicates
+                const existingBoughtCrossSale = boughtCrossOrders.find(order =>
+                    order.saleId === boughtCrossSale.saleId
+                );
+
+                if (!existingBoughtCrossSale) {
+                    boughtCrossOrders.push(boughtCrossSale);
+                }
+            }
+        }
+
+        custLog('debug', `[interactions:getBoughtCrossSaleOrders] Found ${boughtCrossOrders.length} bought cross sale orders`)
 
         return {
             success: true,
             boughtCrossOrders: boughtCrossOrders,
         };
     } catch (error) {
-        console.error("Error getting bought cross sale order list:", error);
+        custLog('error', '[interactions:getBoughtCrossSaleOrders] Error getting bought cross sale order list:', error)
         return {
             success: false,
             boughtCrossOrders: [],
@@ -1577,7 +1726,7 @@ const getBoughtCrossSaleOrders = async (contractAddress: string): Promise<{ succ
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, canceldOrders: any[] }
  */
-const getBoughtSaleOrders = async (contractAddress: string): Promise<{ success: boolean; boughtOrders: any[] }> => {
+const getBoughtSaleOrders = async (contractAddress: string, chainId: number): Promise<{ success: boolean; boughtOrders: any[] }> => {
     try {
         const publicClient = getPublicClient(config);
 
@@ -1601,7 +1750,7 @@ const getBoughtSaleOrders = async (contractAddress: string): Promise<{ success: 
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching Buy events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getBoughtSaleOrders] Fetching Buy events from block ${fromBlock} to ${actualToBlock}`);
 
                 // Query CreateSale events
                 const logs = await publicClient.getLogs({
@@ -1646,19 +1795,36 @@ const getBoughtSaleOrders = async (contractAddress: string): Promise<{ success: 
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching Buy logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('warn', `[interactions:getBoughtSaleOrders] Error fetching Buy logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
                 // Continue with next chunk even if one fails
             }
         }
 
-        console.log(`Found ${boughtOrders.length} bought sale orders`);
+        // Get historical bought sale orders from the graphql database
+        const boughtSales = await getBuys(chainId)
+        custLog('debug', '[interactions:getBoughtSaleOrders] boughtSales', boughtSales)
+        // Add bought sale orders from bought sale orders data
+        if (boughtSales.data?.buys) {
+            for (const boughtSale of boughtSales.data.buys) {
+                // Check if this bought sale order already exists to avoid duplicates
+                const existingBoughtSale = boughtOrders.find(order =>
+                    order.saleId === boughtSale.saleId
+                );
+
+                if (!existingBoughtSale) {
+                    boughtOrders.push(boughtSale);
+                }
+            }
+        }
+
+        custLog('debug', `[interactions:getBoughtSaleOrders] Found ${boughtOrders.length} bought sale orders`)
 
         return {
             success: true,
             boughtOrders: boughtOrders,
         };
     } catch (error) {
-        console.error("Error getting bought sale order list:", error);
+        custLog('error', '[interactions:getBoughtSaleOrders] Error getting bought sale order list:', error)
         return {
             success: false,
             boughtOrders: [],
@@ -1671,7 +1837,7 @@ const getBoughtSaleOrders = async (contractAddress: string): Promise<{ success: 
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, canceldOrders: any[] }
  */
-const getDeletedSaleOrders = async (contractAddress: string): Promise<{ success: boolean; deletedOrders: any[] }> => {
+const getDeletedSaleOrders = async (contractAddress: string, chainId: number): Promise<{ success: boolean; deletedOrders: any[] }> => {
     try {
         const publicClient = getPublicClient(config);
 
@@ -1695,7 +1861,7 @@ const getDeletedSaleOrders = async (contractAddress: string): Promise<{ success:
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching SaleDeleted events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getDeletedSaleOrders] Fetching SaleDeleted events from block ${fromBlock} to ${actualToBlock}`);
 
                 // Query CreateSale events
                 const logs = await publicClient.getLogs({
@@ -1738,19 +1904,41 @@ const getDeletedSaleOrders = async (contractAddress: string): Promise<{ success:
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching SaleDeleted logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('warn', `[interactions:getDeletedSaleOrders] Error fetching SaleDeleted logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
                 // Continue with next chunk even if one fails
             }
         }
 
-        console.log(`Found ${deletedOrders.length} deleted sale orders`);
+        // Get historical deleted sale orders from the graphql database
+        const saleDeleteds = await getSaleDeleteds(chainId)
+        custLog('debug', '[interactions:getDeletedSaleOrders] saleDeleteds', saleDeleteds)
+        // Add deleted sale orders from GraphQL data
+        if (saleDeleteds.data?.saleDeleteds) {
+            for (const saleDeleted of saleDeleteds.data.saleDeleteds) {
+                const deletedOrder = {
+                    saleId: saleDeleted.saleId,
+                    tokenId: saleDeleted.tokenId,
+                };
+
+                // Check if this deleted sale order already exists to avoid duplicates
+                const existingDeletedOrder = deletedOrders.find(order =>
+                    order.saleId === deletedOrder.saleId && order.tokenId === deletedOrder.tokenId
+                );
+
+                if (!existingDeletedOrder) {
+                    deletedOrders.push(deletedOrder);
+                }
+            }
+        }
+
+        custLog('debug', `[interactions:getDeletedSaleOrders] Found ${deletedOrders.length} deleted sale orders`)
 
         return {
             success: true,
             deletedOrders: deletedOrders,
         };
     } catch (error) {
-        console.error("Error getting deleted sale order list:", error);
+        custLog('error', '[interactions:getDeletedSaleOrders] Error getting deleted sale order list:', error)
         return {
             success: false,
             deletedOrders: [],
@@ -1763,7 +1951,7 @@ const getDeletedSaleOrders = async (contractAddress: string): Promise<{ success:
  * @param contractAddress The address of the DeCupManager contract
  * @returns { success: boolean, canceldOrders: any[] }
  */
-const getBurnedNftList = async (contractAddress: string): Promise<{ success: boolean; burnedNfts: any[] }> => {
+const getBurnedNftList = async (contractAddress: string, chainId: number): Promise<{ success: boolean; burnedNfts: any[] }> => {
     try {
         const publicClient = getPublicClient(config);
 
@@ -1787,7 +1975,7 @@ const getBurnedNftList = async (contractAddress: string): Promise<{ success: boo
             const actualToBlock = toBlock > endBlock ? endBlock : toBlock;
 
             try {
-                console.log(`Fetching Burned NFT events from block ${fromBlock} to ${actualToBlock}`);
+                custLog('debug', `[interactions:getBurnedNftList] Fetching Burned NFT events from block ${fromBlock} to ${actualToBlock}`);
 
                 // Query CreateSale events
                 const logs = await publicClient.getLogs({
@@ -1831,19 +2019,39 @@ const getBurnedNftList = async (contractAddress: string): Promise<{ success: boo
                 await new Promise(resolve => setTimeout(resolve, 100));
 
             } catch (chunkError) {
-                console.warn(`Error fetching Burned NFT logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
+                custLog('warn', `[interactions:getBurnedNftList] Error fetching Burned NFT logs for blocks ${fromBlock}-${actualToBlock}:`, chunkError);
                 // Continue with next chunk even if one fails
             }
         }
 
-        console.log(`Found ${burnedNfts.length} burned NFTs`);
+        // Get historical burned NFTs from the graphql database
+        const burnedNftsHistory = await getTransfers(chainId)
+        custLog('debug', '[interactions:getBurnedNftList] burnedNftsHistory', burnedNftsHistory)
+        // Add burned NFTs from GraphQL data
+        if (burnedNftsHistory.data?.transfers) {
+            for (const burnedNft of burnedNftsHistory.data.transfers) {
+                if (burnedNft.to !== '0x0000000000000000000000000000000000000000') {
+                    continue
+                }
+                // Check if this burned NFT already exists to avoid duplicates  
+                const existingBurnedNft = burnedNfts.find(order =>
+                    order.tokenId === burnedNft.tokenId
+                );
+
+                if (!existingBurnedNft) {
+                    burnedNfts.push(burnedNft);
+                }
+            }
+        }
+
+        custLog('debug', `[interactions:getBurnedNftList] Found ${burnedNfts.length} burned NFTs`)
 
         return {
             success: true,
             burnedNfts: burnedNfts,
         };
     } catch (error) {
-        console.error("Error getting sale order list:", error);
+        custLog('error', '[interactions:getBurnedNftList] Error getting sale order list:', error)
         return {
             success: false,
             burnedNfts: [],
@@ -1875,8 +2083,8 @@ const getCcipCollateralInEth = async (contractAddress: string): Promise<{ succes
             collateralEth = collateral as number
         }
     } catch (error) {
-        console.error("Error getting sale order price in ETH:", error)
-        throw error
+        custLog('error', '[interactions:getCcipCollateralInEth] Error getting sale order price in ETH:', error)
+        //throw error
     }
 
     return { success, collateralEth }
@@ -1905,7 +2113,7 @@ const getCcipCollateralInUsd = async (contractAddress: string): Promise<{ succes
             collateralUsd = collateral as number
         }
     } catch (error) {
-        console.error("Error getting sale order price in USD:", error)
+        custLog('error', '[interactions:getCcipCollateralInUsd] Error getting sale order price in USD:', error)
         throw error
     }
 
@@ -1919,6 +2127,7 @@ const getCcipCollateralInUsd = async (contractAddress: string): Promise<{ succes
  * @returns { success: boolean, priceInEth: number }
  */
 const getPriceInETH = async (priceInUsd: number, contractAddress: string): Promise<{ success: boolean; priceInEth: number }> => {
+    custLog('debug', '[interactions:getPriceInETH] input', { priceInUsd, contractAddress })
     let success = false
     let priceInEth = 0
 
@@ -1935,9 +2144,11 @@ const getPriceInETH = async (priceInUsd: number, contractAddress: string): Promi
             priceInEth = price as number
         }
     } catch (error) {
-        console.error("Error getting sale order price in ETH:", error)
+        custLog('error', '[interactions:getPriceInETH] error', error)
         throw error
     }
+
+    custLog('debug', '[interactions:getPriceInETH] output', { success, priceInEth })
 
     return { success, priceInEth }
 
@@ -1966,8 +2177,8 @@ const getIsListedForSale = async (tokenId: number, contractAddress: string): Pro
             isListed = listed as boolean
         }
     } catch (error) {
-        console.error("Error getting token is listed for sale:", error)
-        throw error
+        custLog('error', '[interactions:getIsListedForSale] Error getting token is listed for sale:', error)
+        //throw error
     }
 
     return { success, isListed }
@@ -1983,10 +2194,10 @@ const getIsListedForSale = async (tokenId: number, contractAddress: string): Pro
 const getSaleOrder = async (chainId: number, saleId: number, contractAddress: string): Promise<{ success: boolean, saleOrder: any }> => {
     let success = false
     let saleOrder: any
-    console.log("getSaleOrder")
-    console.log("chainId", chainId)
-    console.log("saleId", saleId)
-    console.log("contractAddress", contractAddress)
+    custLog('debug', '[interactions:getSaleOrder] getSaleOrder')
+    custLog('debug', '[interactions:getSaleOrder] chainId', chainId)
+    custLog('debug', '[interactions:getSaleOrder] saleId', saleId)
+    custLog('debug', '[interactions:getSaleOrder] contractAddress', contractAddress)
     try {
         const order = await readContract(config, {
             address: contractAddress as `0x${string}`,
@@ -2000,8 +2211,8 @@ const getSaleOrder = async (chainId: number, saleId: number, contractAddress: st
             saleOrder = order as any
         }
     } catch (error) {
-        console.error("Error getting token is listed for sale:", error)
-        throw error
+        custLog('error', '[interactions:getSaleOrder] Error getting token is listed for sale:', error)
+        //throw error
     }
 
     return { success, saleOrder }

@@ -10,7 +10,7 @@ import ListModal from "../list-modal"
 import DeleteModal from "../delete-modal"
 import { useNFTStore, type DeCupNFT } from "@/store/nft-store"
 import { useNFTSaleStore } from "@/store/nft-sale-store"
-import { useNFTContext } from "@/contexts/nft-context"
+import { useNFTContext } from "@/context/nft-context"
 import {
     cancelCrossSale, createCrossSale, createSale, cancelSale, burn,
     getTokenPriceInUsd
@@ -20,6 +20,7 @@ import { getContractAddresses, getTokenAddresses, getTokenSymbols } from "@/lib/
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { getChainNameById, getChainIdByName } from "@/lib/contracts/chains"
 import PendingModal from "../pending-modal"
+import { custLog } from "@/lib/utils"
 
 
 type SortField = "tokenId" | "price" | "totalCollateral" | "chain" | "destinationChain" | "isListedForSale"
@@ -129,19 +130,19 @@ export default function MyListContent() {
     const handleListingConfirm = async (selectedChain?: "Sepolia" | "AvalancheFuji") => {
 
         //TODO: remove this
-        console.log("handleListingConfirm")
-        console.log("nftToToggleListing", nftToToggleListing)
-        console.log("selectedChain", selectedChain)
-        console.log("chainId", chainId)
-        console.log("nftToToggleListing.chain", nftToToggleListing?.chain)
-        console.log("nftToToggleListing.isListedForSale", nftToToggleListing?.isListedForSale)
-        console.log("nftToToggleListing.tokenId", nftToToggleListing?.tokenId)
-        console.log("nftToToggleListing.beneficialWallet", nftToToggleListing?.beneficialWallet)
-        console.log("nftToToggleListing.price", nftToToggleListing?.price)
-        console.log("nftToToggleListing.assets", nftToToggleListing?.assets)
+        custLog('debug', '[my-list] handleListingConfirm')
+        custLog('debug', '[my-list] nftToToggleListing', nftToToggleListing)
+        custLog('debug', '[my-list] selectedChain', selectedChain)
+        custLog('debug', '[my-list] chainId', chainId)
+        custLog('debug', '[my-list] nftToToggleListing.chain', nftToToggleListing?.chain)
+        custLog('debug', '[my-list] nftToToggleListing.isListedForSale', nftToToggleListing?.isListedForSale)
+        custLog('debug', '[my-list] nftToToggleListing.tokenId', nftToToggleListing?.tokenId)
+        custLog('debug', '[my-list] nftToToggleListing.beneficialWallet', nftToToggleListing?.beneficialWallet)
+        custLog('debug', '[my-list] nftToToggleListing.price', nftToToggleListing?.price)
+        custLog('debug', '[my-list] nftToToggleListing.assets', nftToToggleListing?.assets)
 
         if (nftToToggleListing) {
-            console.log("nftToToggleListing")
+            custLog('debug', '[my-list] nftToToggleListing')
             const isCurrentlyListed = nftToToggleListing.isListedForSale
 
             // Toggle the listing status
@@ -152,10 +153,10 @@ export default function MyListContent() {
                 setTransactionType("unlist")
                 setIsLoading(true)
                 try {
-                    console.log("isCurrentlyListed - unlisting NFT")
+                    custLog('debug', '[my-list] isCurrentlyListed - unlisting NFT')
                     // NFT was listed, now being unlisted - delete from sale store
-                    console.log("chainId:", nftToToggleListing.chain)
-                    console.log("tokenId:", nftToToggleListing.tokenId)
+                    custLog('debug', '[my-list] chainId:', nftToToggleListing.chain)
+                    custLog('debug', '[my-list] tokenId:', nftToToggleListing.tokenId)
 
                     const destinationChainId = getChainIdByName[nftToToggleListing.destinationChain]
                     let success
@@ -170,31 +171,31 @@ export default function MyListContent() {
                         deleteNFTSaleByTokenId(nftToToggleListing.tokenId)
                     }
                 } catch (error) {
-                    console.error('Error canceling sale:', error)
+                    custLog('error', '[my-list] Error canceling sale:', error)
                 } finally {
                     setIsLoading(false)
                 }
             } else {
                 // NFT was not listed, now being listed - create sale in sale store
                 if (!selectedChain) {
-                    console.error("No chain selected for listing")
+                    custLog('error', '[my-list] No chain selected for listing')
                     return
                 }
 
                 setTransactionType("list")
                 setIsLoading(true)
                 try {
-                    console.log("Creating sale for NFT:", nftToToggleListing.tokenId)
-                    console.log("Creating sale for NFT on chain:", selectedChain)
+                    custLog('debug', '[my-list] Creating sale for NFT:', nftToToggleListing.tokenId)
+                    custLog('debug', '[my-list] Creating sale for NFT on chain:', selectedChain)
                     const destinationChainId = getChainIdByName[selectedChain]
-                    console.log("Creating sale for destinationChainId:", destinationChainId)
-                    console.log("beneficialWallet", nftToToggleListing.beneficialWallet)
-                    console.log("chainId", chainId)
-                    console.log("nftToToggleListing.price", nftToToggleListing.price)
+                    custLog('debug', '[my-list] Creating sale for destinationChainId:', destinationChainId)
+                    custLog('debug', '[my-list] beneficialWallet', nftToToggleListing.beneficialWallet)
+                    custLog('debug', '[my-list] chainId', chainId)
+                    custLog('debug', '[my-list] nftToToggleListing.price', nftToToggleListing.price)
 
                     const { success: successGetTokenPriceInUsd, price: tokenPriceInUsd } = await getTokenPriceInUsd(BigInt(nftToToggleListing.tokenId), getContractAddresses[chainId as keyof typeof getContractAddresses].DeCup)
 
-                    console.log("tokenPriceInUsd", tokenPriceInUsd)
+                    custLog('debug', '[my-list] tokenPriceInUsd', tokenPriceInUsd)
                     let success, tokenId, saleId
 
                     if (destinationChainId !== chainId) {
@@ -216,7 +217,7 @@ export default function MyListContent() {
                         }
                     }
                 } catch (error) {
-                    console.error('Error creating sale:', error)
+                    custLog('error', '[my-list] Error creating sale:', error)
                 } finally {
                     setIsLoading(false)
                 }
@@ -258,7 +259,7 @@ export default function MyListContent() {
                     setIsDeleteDialogOpen(false)
                 }
             } catch (error) {
-                console.error('Error burning NFT:', error)
+                custLog('error', '[my-list] Error burning NFT:', error)
             } finally {
                 setIsLoading(false)
             }
