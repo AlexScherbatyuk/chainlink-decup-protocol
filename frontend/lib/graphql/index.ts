@@ -4,15 +4,15 @@ import { custLog } from '../utils'
 
 const getAPIURL = (chainId: number) => {
   if (chainId === 43113) {
-    return 'https://api.studio.thegraph.com/query/115840/de-cup-manager-avalanche-fujy/version/latest'
+    return process.env.NEXT_PUBLIC_GRAPHQL_AVALANCHE
   } else {
-    return 'https://api.studio.thegraph.com/query/115840/decupmanager-sepolia/version/latest'
+    return process.env.NEXT_PUBLIC_GRAPHQL_SEPOLIA
   }
 }
 
 export const createGraphQLClient = (chainId: number) => {
   return createClient({
-    url: getAPIURL(chainId),
+    url: getAPIURL(chainId) || '',
     exchanges: [
       cacheExchange,
       fetchExchange,
@@ -20,7 +20,7 @@ export const createGraphQLClient = (chainId: number) => {
     fetchOptions: {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer 8132c2e80981876d4ed98bea7873d617',
+        'Authorization': 'Bearer ' + process.env.NEXT_PUBLIC_GRAPHQL_API_KEY,
       },
     },
   })
