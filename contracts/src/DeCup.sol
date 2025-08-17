@@ -53,15 +53,17 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     mapping(address token => address priceFeed) private s_tokenToPriceFeed;
     mapping(uint256 tokenId => mapping(address token => uint256 amount)) private s_collateralDeposited;
     mapping(uint256 tokenId => bool isListedForSale) private s_tokenIdIsListedForSale;
+    mapping(uint256 tokenId => uint256 chainId) private s_tokenIdIsListedForSaleOnChain;
 
     // Events
-    event DepositNativeCurrency(address indexed from, uint256 amount);
-    event DepositERC20Token(address indexed from, address indexed token, uint256 amount);
+    event DepositNativeCurrency(address indexed from, uint256 indexed tokenId, uint256 amount);
+    event DepositERC20Token(address indexed from, uint256 indexed tokenId, address indexed token, uint256 amount);
     event WithdrawNativeCurrency(address indexed to, uint256 amount);
     event WithdrawERC20Token(address indexed to, address indexed token, uint256 amount);
-    event TokenListedForSale(uint256 indexed tokenId);
+    event TokenListedForSale(uint256 indexed tokenId, uint256 indexed chainId);
     event TokenRemovedFromSale(uint256 indexed tokenId);
-
+    event Burn(uint256 indexed tokenId);
+    event TransferAndBurn(uint256 indexed tokenId);
     // Modifiers
 
     /**
@@ -206,7 +208,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         uint256 tokenId = s_tokenCounter;
         s_collateralDeposited[tokenId][address(0)] += msg.value;
         s_tokenIdToAssets[tokenId].push(address(0));
-        emit DepositNativeCurrency(msg.sender, msg.value);
+        emit DepositNativeCurrency(msg.sender, tokenId, msg.value);
 
         _safeMint(msg.sender, tokenId);
         s_tokenCounter++;
@@ -241,7 +243,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             s_tokenIdToAssets[tokenId].push(tokenAddress);
         }
         s_collateralDeposited[tokenId][tokenAddress] += amount;
-        emit DepositERC20Token(msg.sender, tokenAddress, amount);
+        emit DepositERC20Token(msg.sender, tokenId, tokenAddress, amount);
 
         // Interactions
         (bool success) = IERC20Metadata(tokenAddress).transferFrom(msg.sender, address(this), amount);
@@ -273,7 +275,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             s_tokenIdToAssets[tokenId].push(address(0));
         }
         s_collateralDeposited[tokenId][address(0)] += msg.value;
-        emit DepositNativeCurrency(msg.sender, msg.value);
+        emit DepositNativeCurrency(msg.sender, tokenId, msg.value);
     }
 
     /**
@@ -286,19 +288,14 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Emits DepositERC20Token event on successful deposit
      * @dev The caller must have approved this contract to spend their tokens before calling this function
      */
-    function depositSingleAssetAndMint(address tokenAddress, uint256 amount)
-        external
-        payable
-        moreThanZero(amount)
-        nonReentrant
-    {
+    function depositSingleAssetAndMint(address tokenAddress, uint256 amount) external payable moreThanZero(amount) nonReentrant {
         // Checkss
         if (s_tokenToPriceFeed[tokenAddress] == address(0)) {
             revert DeCup__NotAllowedToken();
         }
         // Effects
         uint256 tokenId = s_tokenCounter;
-        emit DepositERC20Token(msg.sender, tokenAddress, amount);
+        emit DepositERC20Token(msg.sender, tokenId, tokenAddress, amount);
         s_collateralDeposited[tokenId][tokenAddress] += amount;
         s_tokenIdToAssets[tokenId].push(tokenAddress);
         _mintAndIncreaseCounter(msg.sender, tokenId);
@@ -327,11 +324,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      *     {value: 1e18} // 1 ETH
      *   )
      */
-    function depositMultipleAssetsAndMint(address[] memory tokenAddresses, uint256[] memory amounts)
-        external
-        payable
-        nonReentrant
-    {
+    function depositMultipleAssetsAndMint(address[] memory tokenAddresses, uint256[] memory amounts) external payable nonReentrant {
         // Checks (in modifiers)
         if (tokenAddresses.length != amounts.length) {
             revert DeCup__TokenAddressesAndAmountsMusBeSameLength();
@@ -345,7 +338,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         uint256 tokenId = s_tokenCounter;
 
         if (msg.value > 0) {
-            emit DepositNativeCurrency(msg.sender, msg.value);
+            emit DepositNativeCurrency(msg.sender, tokenId, msg.value);
             s_collateralDeposited[tokenId][address(0)] += msg.value;
             s_tokenIdToAssets[tokenId].push(address(0));
         }
@@ -358,7 +351,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
                 revert DeCup__AmountMustBeGreaterThanZero();
             }
 
-            emit DepositERC20Token(msg.sender, tokenAddresses[i], amounts[i]);
+            emit DepositERC20Token(msg.sender, tokenId, tokenAddresses[i], amounts[i]);
             s_collateralDeposited[tokenId][tokenAddresses[i]] += amounts[i];
             s_tokenIdToAssets[tokenId].push(tokenAddresses[i]);
 
@@ -380,13 +373,15 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     /**
      * @notice Function to list a token for sale
      * @param tokenId The ID of the token to list for sale
+     * @param chainId The chain ID where the token is listed for sale
      * @dev Only callable by contract owner (manager)
      * @dev Emits TokenListedForSale event on successful listing
      * @dev Reverts if the token is already listed for sale
      */
-    function listForSale(uint256 tokenId) public isManager tokenIsNotListedForSale(tokenId) {
+    function listForSale(uint256 tokenId, uint256 chainId) public isManager tokenIsNotListedForSale(tokenId) {
         s_tokenIdIsListedForSale[tokenId] = true;
-        emit TokenListedForSale(tokenId);
+        s_tokenIdIsListedForSaleOnChain[tokenId] = chainId;
+        emit TokenListedForSale(tokenId, chainId);
     }
 
     /**
@@ -401,6 +396,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             revert DeCup__TokenIsNotListedForSale();
         }
         s_tokenIdIsListedForSale[tokenId] = false;
+        s_tokenIdIsListedForSaleOnChain[tokenId] = 0;
         emit TokenRemovedFromSale(tokenId);
     }
 
@@ -413,14 +409,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Only callable by contract owner (manager)
      * @dev Token must be listed for sale
      */
-    function transfer(uint256 tokenId, address to)
-        public
-        tokenExists(tokenId)
-        isManager
-        tokenIsListedForSale(tokenId)
-        nonReentrant
-        returns (bool)
-    {
+    function transfer(uint256 tokenId, address to) public tokenExists(tokenId) isManager tokenIsListedForSale(tokenId) nonReentrant returns (bool) {
         delete s_tokenIdIsListedForSale[tokenId];
         _transfer(ownerOf(tokenId), to, tokenId);
         return true;
@@ -444,6 +433,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
         returns (bool)
     {
         delete s_tokenIdIsListedForSale[tokenId];
+        emit TransferAndBurn(tokenId);
         _transfer(ownerOf(tokenId), to, tokenId);
         _withdraw(tokenId);
         _burn(tokenId);
@@ -459,14 +449,8 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Emits WithdrawNativeCurrency and WithdrawERC20Token events for each successful withdrawal
      * @dev Reverts if the token does not exist or if any transfer fails
      */
-    function burn(uint256 tokenId)
-        public
-        override
-        tokenExists(tokenId)
-        isOwnerOrManager(tokenId)
-        tokenIsNotListedForSale(tokenId)
-        nonReentrant
-    {
+    function burn(uint256 tokenId) public override tokenExists(tokenId) isOwnerOrManager(tokenId) tokenIsNotListedForSale(tokenId) nonReentrant {
+        emit Burn(tokenId);
         _withdraw(tokenId);
         _burn(tokenId);
     }
@@ -662,6 +646,18 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Returns the chain ID where the token is listed for sale
+     * @param tokenId The ID of the token to get the chain ID for
+     * @return The chain ID where the token is listed for sale
+     */
+    function getIsListedForSaleOnChain(uint256 tokenId) public view returns (uint256) {
+        if (!s_tokenIdIsListedForSale[tokenId]) {
+            revert DeCup__TokenIsNotListedForSale();
+        }
+        return s_tokenIdIsListedForSaleOnChain[tokenId];
+    }
+
+    /**
      * @notice Returns the USD value of a given USDC token amount
      * @param tokenAddress The address of the USDC token
      * @param amount The amount of USDC tokens
@@ -764,15 +760,8 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             bytes memory symbol = asset == address(0) ? bytes(s_defaultSymbol) : bytes(IERC20Metadata(asset).symbol());
 
             // Build attribute JSON more efficiently
-            attributes = abi.encodePacked(
-                attributes,
-                i > 0 ? bytes(",") : bytes(""),
-                '{"trait_type":"',
-                symbol,
-                '","value":"',
-                Strings.toString(amount),
-                '"}'
-            );
+            attributes =
+                abi.encodePacked(attributes, i > 0 ? bytes(",") : bytes(""), '{"trait_type":"', symbol, '","value":"', Strings.toString(amount), '"}');
 
             unchecked {
                 ++i;

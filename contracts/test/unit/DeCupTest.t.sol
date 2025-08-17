@@ -181,6 +181,7 @@ contract DeCupTest is Test {
     function testBurnNftRevertsWhenNativeCurrencyListedForSale() public {
         // Arrange
         uint256 tokenId = 0; // First minted token will have ID 0
+        uint256 chainId = 1;
 
         // First deposit 1 ether to get an NFT
         vm.prank(USER);
@@ -194,7 +195,7 @@ contract DeCupTest is Test {
         console.log("msg.sender", msg.sender);
 
         vm.prank(address(msg.sender));
-        deCup.listForSale(tokenId);
+        deCup.listForSale(tokenId, chainId);
 
         vm.prank(USER);
         vm.expectRevert(DeCup.DeCup__TokenIsListedForSale.selector);
@@ -595,13 +596,13 @@ contract DeCupTest is Test {
     function testListForSale() public {
         // Arrange
         uint256 tokenId = 0;
-
+        uint256 chainId = 1;
         // Act
         vm.prank(USER);
         (bool success,) = address(deCup).call{value: 1 ether}("");
 
         vm.prank(address(msg.sender));
-        deCup.listForSale(tokenId);
+        deCup.listForSale(tokenId, chainId);
 
         // Assert
         assert(success);
@@ -615,13 +616,13 @@ contract DeCupTest is Test {
     function testRemoveFromSale() public {
         // Arrange
         uint256 tokenId = 0;
-
+        uint256 chainId = 1;
         // Act
         vm.prank(USER);
         (bool success,) = address(deCup).call{value: 1 ether}("");
 
         vm.startPrank(address(msg.sender));
-        deCup.listForSale(tokenId);
+        deCup.listForSale(tokenId, chainId);
         deCup.removeFromSale(tokenId);
         vm.stopPrank();
 

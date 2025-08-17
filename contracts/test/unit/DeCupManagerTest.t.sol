@@ -169,7 +169,7 @@ contract DeCupManagerTest is Test {
     function testCreateSaleRevertsIfTokenAlreadyListed() public {
         // First list the token
         vm.prank(address(decupManager));
-        deCup.listForSale(TEST_TOKEN_ID);
+        deCup.listForSale(TEST_TOKEN_ID, TEST_NETWORK_ID);
 
         vm.prank(user2);
         vm.expectRevert(DeCupManager.DeCupManager__TokenListedForSale.selector);

@@ -113,26 +113,13 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
     event Withdraw(address indexed user, uint256 amount);
     event CancelSale(uint256 indexed saleId);
     event CancelCrossSale(uint256 indexed tokenId);
-    event CreateSale(
-        uint256 indexed saleId,
-        uint256 indexed tokenId,
-        address indexed sellerAddress,
-        uint256 sourceChainId,
-        uint256 destinationChainId,
-        uint256 priceInUsd
-    );
-    event CreateCrossSale(
-        uint256 indexed tokenId,
-        address indexed sellerAddress,
-        uint256 sourceChainId,
-        uint256 destinationChainId,
-        uint256 priceInUsd
-    );
+    event CreateSale(uint256 indexed saleId, uint256 indexed tokenId, address indexed sellerAddress, uint256 sourceChainId, uint256 destinationChainId, uint256 priceInUsd);
+    event ChainEnabled(uint256 indexed chainId, uint64 chainSelector, address linkAddress, address receiverAddress, address routerAddress);
+    event ChainDisabled(uint256 indexed chainId);
+    event CreateCrossSale(uint256 indexed tokenId, address indexed sellerAddress, uint256 sourceChainId, uint256 destinationChainId, uint256 priceInUsd);
     event SaleDeleted(uint256 indexed saleId, uint256 indexed tokenId);
     event Buy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
-    event BuyCrossSale(
-        uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied, address indexed sellerAddress
-    );
+    event BuyCrossSale(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied, address indexed sellerAddress);
     event CrossChainReceived(bytes32 messageId, uint64 sourceChainSelector, uint64 destinationChainSelector);
     event CrossChainDataReceived(
         CrossChainAction action,
@@ -157,13 +144,17 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         bool isBurn,
         uint256 priceInUsd
     );
-
+    event ChainReceiverDeleted(uint256 indexed chainId);
+    event DeCupOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event ChainReceiverAdded(uint256 indexed chainId, address indexed receiverAddress);
+    event CcipCollateralSet(uint256 amount);
     //Modifiers
     /**
      * @notice Modifier to check if the amount is greater than zero
      * @dev Reverts if the amount is zero
      * @param amount The amount to check
      */
+
     modifier moreThanZero(uint256 amount) {
         if (amount == 0) {
             revert DeCupManager__MoreThanZero();
@@ -253,6 +244,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param newOwner The address of the new owner
      */
     function transferOwnershipOfDeCup(address newOwner) external onlyOwner {
+        emit DeCupOwnershipTransferred(msg.sender, newOwner);
         s_nft.transferOwnership(newOwner);
     }
 
@@ -266,12 +258,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param beneficiaryAddress The address that will receive payment
      * @param destinationChainId The ID of the target chain where the sale will be created
      */
-    function createCrossSale(
-        uint256 tokenId,
-        address beneficiaryAddress,
-        uint256 destinationChainId,
-        uint256 priceInUsd
-    ) external payable moreThanZero(msg.value) nonReentrant {
+    function createCrossSale(uint256 tokenId, address beneficiaryAddress, uint256 destinationChainId, uint256 priceInUsd) external payable moreThanZero(msg.value) nonReentrant {
         // Checks
         uint256 ccipCollateralInEth = getPriceInETH(s_ccipCollateralInUsd);
         if (msg.value < ccipCollateralInEth) {
@@ -288,7 +275,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         // Effects
         _addCollateral(msg.sender, msg.value);
         emit CreateCrossSale(tokenId, msg.sender, block.chainid, destinationChainId, priceInUsd);
-        s_nft.listForSale(tokenId);
+        s_nft.listForSale(tokenId, destinationChainId);
         string[] memory assetsInfo = s_nft.getAssetsInfo(tokenId);
 
         // Interactions
@@ -297,14 +284,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         CrossChainMessage memory messageData = CrossChainMessage({
             action: CrossChainAction.CreateSale,
             saleId: 0,
-            order: Order({
-                tokenId: tokenId,
-                sellerAddress: msg.sender,
-                beneficiaryAddress: beneficiaryAddress,
-                chainId: block.chainid,
-                priceInUsd: priceInUsd,
-                assetsInfo: assetsInfo
-            }),
+            order: Order({tokenId: tokenId, sellerAddress: msg.sender, beneficiaryAddress: beneficiaryAddress, chainId: block.chainid, priceInUsd: priceInUsd, assetsInfo: assetsInfo}),
             buyerAddress: address(0),
             isBurn: false,
             priceInUsd: 0
@@ -377,14 +357,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         CrossChainMessage memory messageData = CrossChainMessage({
             action: CrossChainAction.CancelSale,
             saleId: 0,
-            order: Order({
-                tokenId: tokenId,
-                sellerAddress: msg.sender,
-                beneficiaryAddress: msg.sender,
-                chainId: destinationChainId,
-                priceInUsd: 0,
-                assetsInfo: new string[](0)
-            }),
+            order: Order({tokenId: tokenId, sellerAddress: msg.sender, beneficiaryAddress: msg.sender, chainId: destinationChainId, priceInUsd: 0, assetsInfo: new string[](0)}),
             buyerAddress: address(0),
             isBurn: false,
             priceInUsd: 0
@@ -406,11 +379,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param destinationChainId The ID of the source chain where the NFT is located
      * @param isBurn Whether to burn the token after transfer
      */
-    function buyCrossSale(uint256 saleId, address buyerBeneficiaryAddress, uint256 destinationChainId, bool isBurn)
-        external
-        payable
-        nonReentrant
-    {
+    function buyCrossSale(uint256 saleId, address buyerBeneficiaryAddress, uint256 destinationChainId, bool isBurn) external payable nonReentrant {
         //uint256 priceInETH = getPriceInETHIncludingCollateral(priceInUsd);
         Order memory saleOrder = s_chainIdToSaleIdToSaleOrder[destinationChainId][saleId];
         uint256 ccipCollateralInEth = getPriceInETH(s_ccipCollateralInUsd);
@@ -434,14 +403,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         // Interactions
         // Call internal ccip function to transfer token to buyer
 
-        CrossChainMessage memory messageData = CrossChainMessage({
-            action: CrossChainAction.Buy,
-            saleId: saleId,
-            order: saleOrder,
-            buyerAddress: buyerBeneficiaryAddress,
-            isBurn: isBurn,
-            priceInUsd: priceInUsd
-        });
+        CrossChainMessage memory messageData =
+            CrossChainMessage({action: CrossChainAction.Buy, saleId: saleId, order: saleOrder, buyerAddress: buyerBeneficiaryAddress, isBurn: isBurn, priceInUsd: priceInUsd});
 
         emit CrossChainDataSent(
             messageData.action,
@@ -499,13 +462,8 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         } else if (messageData.action == CrossChainAction.CancelSale) {
             _cancelSale(messageData.order.tokenId, messageData.order.sellerAddress, messageData.order.chainId);
         } else if (messageData.action == CrossChainAction.Buy) {
-            _buy(
-                messageData.saleId,
-                messageData.order.tokenId,
-                messageData.order.sellerAddress,
-                messageData.buyerAddress,
-                messageData.isBurn
-            );
+            emit Buy(messageData.saleId, messageData.buyerAddress, messageData.priceInUsd);
+            _buy(messageData.saleId, messageData.order.tokenId, messageData.order.sellerAddress, messageData.buyerAddress, messageData.isBurn);
         } else {
             revert DeCupManager__InvalidAction();
         }
@@ -524,17 +482,12 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param receiverAddress The address of the receiver contract on the chain
      * @param routerAddress The address of the router contract on the chain
      */
-    function enableChain(
-        uint256 chainId,
-        uint64 chainSelector,
-        address linkAddress,
-        address receiverAddress,
-        address routerAddress
-    ) public onlyOwner nonReentrant {
+    function enableChain(uint256 chainId, uint64 chainSelector, address linkAddress, address receiverAddress, address routerAddress) public onlyOwner nonReentrant {
         s_chainIdToChainSelector[chainId] = chainSelector;
         s_chainIdToLinkAddress[chainId] = linkAddress;
         s_chainIdToReceiverAddress[chainId] = receiverAddress;
         s_chainIdToRouterAddress[chainId] = routerAddress;
+        emit ChainEnabled(chainId, chainSelector, linkAddress, receiverAddress, routerAddress);
     }
 
     /**
@@ -545,6 +498,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      */
     function addChainReceiver(uint256 chainId, address receiverAddress) public onlyOwner nonReentrant {
         s_chainIdToReceiverAddress[chainId] = receiverAddress;
+        emit ChainReceiverAdded(chainId, receiverAddress);
     }
 
     /**
@@ -557,6 +511,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         delete s_chainIdToLinkAddress[chainId];
         delete s_chainIdToReceiverAddress[chainId];
         delete s_chainIdToRouterAddress[chainId];
+        emit ChainDisabled(chainId);
     }
 
     /**
@@ -566,6 +521,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      */
     function deleteChainReceiver(uint256 chainId) public onlyOwner nonReentrant {
         delete s_chainIdToReceiverAddress[chainId];
+        emit ChainReceiverDeleted(chainId);
     }
 
     /**
@@ -615,6 +571,7 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      */
     function setCcipCollateral(uint256 amount) public onlyOwner nonReentrant {
         s_ccipCollateralInUsd = amount;
+        emit CcipCollateralSet(amount);
     }
 
     /**
@@ -638,12 +595,10 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
         // Effects
         string[] memory assetsInfo = s_nft.getAssetsInfo(tokenId);
 
-        _createSale(
-            tokenId, msg.sender, beneficiaryAddress, block.chainid, s_nft.getTokenPriceInUsd(tokenId), assetsInfo
-        );
+        _createSale(tokenId, msg.sender, beneficiaryAddress, block.chainid, s_nft.getTokenPriceInUsd(tokenId), assetsInfo);
 
         // Interactions
-        s_nft.listForSale(tokenId);
+        s_nft.listForSale(tokenId, block.chainid);
     }
 
     /**
@@ -729,23 +684,10 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
      * @param chainId The ID of the chain where the sale is created
      * @param priceInUsd The price of the NFT in USD (with 8 decimals)
      */
-    function _createSale(
-        uint256 tokenId,
-        address sellerAddress,
-        address beneficiaryAddress,
-        uint256 chainId,
-        uint256 priceInUsd,
-        string[] memory assetsInfo
-    ) internal {
+    function _createSale(uint256 tokenId, address sellerAddress, address beneficiaryAddress, uint256 chainId, uint256 priceInUsd, string[] memory assetsInfo) internal {
         uint256 saleId = s_saleCounter;
-        Order memory saleOrder = Order({
-            tokenId: tokenId,
-            sellerAddress: sellerAddress,
-            beneficiaryAddress: beneficiaryAddress,
-            chainId: chainId,
-            priceInUsd: priceInUsd,
-            assetsInfo: assetsInfo
-        });
+        Order memory saleOrder =
+            Order({tokenId: tokenId, sellerAddress: sellerAddress, beneficiaryAddress: beneficiaryAddress, chainId: chainId, priceInUsd: priceInUsd, assetsInfo: assetsInfo});
         s_chainIdToSaleIdToSaleOrder[chainId][saleId] = saleOrder;
         s_chainIdToTokenIdToSaleId[chainId][tokenId] = saleId;
         s_saleCounter++;

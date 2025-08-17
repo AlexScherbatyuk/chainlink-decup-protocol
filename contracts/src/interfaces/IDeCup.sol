@@ -25,7 +25,7 @@ interface IDeCup {
     function depositMultipleAssetsAndMint(address[] memory tokenAddresses, uint256[] memory amounts) external payable;
 
     // Sale Functions
-    function listForSale(uint256 tokenId) external;
+    function listForSale(uint256 tokenId, uint256 chainId) external;
     function removeFromSale(uint256 tokenId) external;
     function transferAndBurn(uint256 tokenId, address to) external returns (bool);
     function transfer(uint256 tokenId, address to) external returns (bool);

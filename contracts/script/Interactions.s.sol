@@ -180,7 +180,7 @@ contract ListForSale is Script {
 
     function listForSale(address deCupAddress, uint256 tokenId) public {
         vm.startBroadcast();
-        DeCup(payable(deCupAddress)).listForSale(tokenId);
+        DeCup(payable(deCupAddress)).listForSale(tokenId, block.chainid);
         vm.stopBroadcast();
     }
 }
