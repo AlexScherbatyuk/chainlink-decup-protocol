@@ -11,23 +11,15 @@ contract DeployDeCup is Script {
         HelperConfigDeCup config = new HelperConfigDeCup();
         HelperConfigDeCup.NetworkConfig memory networkConfig = config.getConfig();
 
-        DeCup decup = deployDeCup(
-            networkConfig.imageURI,
-            networkConfig.tokenAddresses,
-            networkConfig.priceFeedAddresses,
-            networkConfig.defaultPriceFeed,
-            networkConfig.defaultSymbol
-        );
+        DeCup decup =
+            deployDeCup(networkConfig.imageURI, networkConfig.tokenAddresses, networkConfig.priceFeedAddresses, networkConfig.defaultPriceFeed, networkConfig.defaultSymbol);
         return (decup, config);
     }
 
-    function deployDeCup(
-        string memory imageURI,
-        address[] memory tokenAddresses,
-        address[] memory priceFeedAddresses,
-        address defaultPriceFeed,
-        string memory defaultSymbol
-    ) public returns (DeCup) {
+    function deployDeCup(string memory imageURI, address[] memory tokenAddresses, address[] memory priceFeedAddresses, address defaultPriceFeed, string memory defaultSymbol)
+        public
+        returns (DeCup)
+    {
         vm.startBroadcast();
         DeCup deploy = new DeCup(imageURI, tokenAddresses, priceFeedAddresses, defaultPriceFeed, defaultSymbol);
         vm.stopBroadcast();

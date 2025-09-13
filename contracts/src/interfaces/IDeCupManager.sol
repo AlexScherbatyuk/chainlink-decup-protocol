@@ -51,17 +51,9 @@ interface IDeCupManager {
     event Deposit(address indexed user, uint256 amount);
     event Withdraw(address indexed user, uint256 amount);
     event CancelSale(uint256 indexed saleId);
-    event CreateSale(
-        uint256 indexed saleId,
-        uint256 indexed tokenId,
-        address indexed sellerAddress,
-        uint256 sourceChainId,
-        uint256 destinationChainId
-    );
+    event CreateSale(uint256 indexed saleId, uint256 indexed tokenId, address indexed sellerAddress, uint256 sourceChainId, uint256 destinationChainId);
     event Buy(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied);
-    event BuyCrossSale(
-        uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied, address indexed sellerAddress
-    );
+    event BuyCrossSale(uint256 indexed saleId, address indexed buyerAddress, uint256 amountPaied, address indexed sellerAddress);
     event CrossChainReceived(bytes32 messageId, uint64 sourceChainSelector, uint64 destinationChainSelector);
     event CrossChainDataReceived(
         CrossChainAction action,
@@ -91,24 +83,14 @@ interface IDeCupManager {
     receive() external payable;
     function withdrawFunds() external;
     function transferOwnershipOfDeCup(address newOwner) external;
-    function createCrossSale(uint256 tokenId, address beneficiaryAddress, uint256 destinationChainId)
-        external
-        payable;
+    function createCrossSale(uint256 tokenId, address beneficiaryAddress, uint256 destinationChainId) external payable;
     function cancelCrossSale(uint256 saleId, uint256 destinationChainId, uint256 tokenId) external payable;
-    function buyCrossSale(uint256 saleId, address buyerBeneficiaryAddress, uint256 destinationChainId, bool isBurn)
-        external
-        payable;
+    function buyCrossSale(uint256 saleId, address buyerBeneficiaryAddress, uint256 destinationChainId, bool isBurn) external payable;
     function ccipReceive(Client.Any2EVMMessage memory message) external;
     function getSaleOwner(uint256 saleId, uint256 chainId) external view returns (address);
 
     // Public Functions
-    function enableChain(
-        uint256 chainId,
-        uint64 chainSelector,
-        address linkAddress,
-        address receiverAddress,
-        address routerAddress
-    ) external;
+    function enableChain(uint256 chainId, uint64 chainSelector, address linkAddress, address receiverAddress, address routerAddress) external;
     function addChainReceiver(uint256 chainId, address receiverAddress) external;
     function disableChain(uint256 chainId) external;
     function deleteChainReceiver(uint256 chainId) external;

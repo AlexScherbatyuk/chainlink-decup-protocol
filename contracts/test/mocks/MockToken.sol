@@ -11,10 +11,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract MockToken is ERC20 {
     uint8 s_decimal;
 
-    constructor(string memory name, string memory symbol, address initialAccount, uint256 initialBalance, uint8 decimal)
-        payable
-        ERC20(name, symbol)
-    {
+    constructor(string memory name, string memory symbol, address initialAccount, uint256 initialBalance, uint8 decimal) payable ERC20(name, symbol) {
         s_decimal = decimal;
         _mint(initialAccount, initialBalance);
     }

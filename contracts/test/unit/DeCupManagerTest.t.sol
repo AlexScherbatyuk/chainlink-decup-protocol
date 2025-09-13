@@ -336,10 +336,7 @@ contract DeCupManagerTest is Test {
         // Test round trip conversion
         uint256 convertedBackToETH = decupManager.getPriceInETH(priceInUsd);
         // Allow for small rounding error due to division
-        assertTrue(
-            convertedBackToETH >= testPriceInETH - 1000 && convertedBackToETH <= testPriceInETH + 1000,
-            "Round trip conversion should be approximately equal"
-        );
+        assertTrue(convertedBackToETH >= testPriceInETH - 1000 && convertedBackToETH <= testPriceInETH + 1000, "Round trip conversion should be approximately equal");
     }
 
     function testGetPriceInETHIncludingCollateral() public view {
@@ -567,10 +564,7 @@ contract DeCupManagerTest is Test {
         uint256 convertedBack = decupManager.getPriceInETH(priceInUsd);
         // Allow for rounding errors - should be within 0.1% of original
         uint256 tolerance = priceInETH / 1000;
-        assertTrue(
-            convertedBack >= priceInETH - tolerance && convertedBack <= priceInETH + tolerance,
-            "Round trip conversion should be approximately equal"
-        );
+        assertTrue(convertedBack >= priceInETH - tolerance && convertedBack <= priceInETH + tolerance, "Round trip conversion should be approximately equal");
     }
 
     function testFuzzGetPriceInETHIncludingCollateral(uint256 priceInUSD) public view {

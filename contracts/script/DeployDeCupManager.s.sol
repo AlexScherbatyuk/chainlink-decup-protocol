@@ -44,9 +44,7 @@ contract DeployDeCupManager is Script {
     ) public returns (DeCupManager) {
         vm.startBroadcast();
         // Deploy DeCupManager
-        DeCupManager deploy = new DeCupManager(
-            deCupAddress, defaultPriceFeed, destinationChainIds, destinationChainSelectors, linkTokens, ccipRouters
-        );
+        DeCupManager deploy = new DeCupManager(deCupAddress, defaultPriceFeed, destinationChainIds, destinationChainSelectors, linkTokens, ccipRouters);
         // Transfer ownership of the DeCup NFT to the DeCupManager
         DeCup(payable(deCupAddress)).transferOwnership(address(deploy));
         vm.stopBroadcast();

@@ -1,3 +1,38 @@
+/*
+*                                                                                                      
+*                                                   █#░╠╠╫╣░░░░╣╣╫╫╠╠╫╫╫╠╠░#                           
+*                                              █#░╠╫╣╣╣╣╣░▒▒▒▒░░░░░░░▒▒▒░░╣╫╠╠░#                       
+*                                       █#░░░###░╠░░##░╫╣╫╫╫╠╠╠╠╫╫╠╫╫╣╣╣╣░╣╣░▒▒░╠▒▒╣#                  
+*                                    █#░░░░#█####█████#░░░░░██###░░╫╫╫╠╠╠╫╣╣╣╣╫╠╫░░▒▒╫                 
+*                                  █░╠╠░░░#██#███████░░###░░####░╠╫╫╫╫╫╫╫╫╣╣╣╣░╫╣░▒╣#╣░#               
+*                              █░╫╫╣▒░╫####███████#╠╣╫╠#████░╠░░░##░╫░░░░░░╣╣╣░░░▓░▒▒░#╫╣╣░▒▒▒▒▒▒▒░░╠  
+*                             #╠╫╫░░▒╠##░#███████#╫╫╠#████░░░###░░╠╣░░░░░░╣╫╫╣░░╫▓█╠╣▒╠██╫░░░░░░░░╫╠#  
+*                            ╠╫╫╫░░╣░##░░#███###░╠╠#████#╠#█████#╫░░░╠╫░░╣╫╣╫╫░▒░╠██░╫░#╠╫░░░░▒▒▒▒░╣╠  
+*                         #╫╣╣░▒▒╫████#█▓#░█#▓#█▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓╠▒░╫#░╠╫╫╫╫╣░░▒░╠╠╫╣╣╣╣░░░░░░░╣╠#       
+*                        #╫╣╣╣░▒▒░████##█#█▓▓▓▓▓▓█#█▓▓▓▓▓▓▓██▓█░╫░#░╠╫╫╫╣╣╣░░╣#█╫╫╠╫╫╫╫╣╣░╣░▒▒╣#       
+*                        ╠╫▒╣╫▒▒▒░█████#█▓▓█#░█▓#░█▓▓█▓▓▓▓▓#╠█##╠░#█░╫╫╠╫╫╫░░░#░░╫╫╣╣╣░░▒▒▒░░▒▒░░      
+*                      ░╠╫░░░╠╫░╣▒░████▓▓███▓▓▓▓▓▓▓▓▓▓▓▓▓▓██▓▓████##░░░░╠╣░╣╫░█░░░╠░░╠╣░░╣░▒▒▒░╣╣      
+*                      ╫╠╫░╣░╣╠░╣╫╫#███▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▓██████#╠#░╠░╠╫╠╫╣╫╫╣╣░█##╠╠░╠╫╣░▒▒░░░░░       
+*                      ╫░╫░╣╣░╠╠╣╠╠░███#█▓██▓▓██▓▓████▓▓███████╠░╠╠╫╣╫╠╠╫╫╫╠░░╫██╠╫▒╫░╠╫╫╫╣▒░░░█       
+*                      ╠╠╫░╣╣╫╣╫░░░#█████##█▓▓▓▓▓▓▓▓▓█##░╫╫░####░###░#█        ╫█#█▓#░░╫╣░░╫╠╫░█       
+*                      ╠╠╫╫╣╫░╫░█###█████##█▓▓▓▓█▓█▓▓▓▓█░█╫░###██#██        #╫░░╠█▓###░╠╣░▒▒╫╫╫        
+*                      ╫╣╠╫╣╠╣╣#█#██████#██▓▓▓▓▓▓██▓▓▓▓█#█##████▓         ░╣░░╣╠█▓█#██#╫░╣╫▒╣╠╣        
+*                       ░▒╣╠╣╠╫#██████▓▓██▓██▓█▓▓▓██████▓▓           #╠╣╫╫╠╠╠╫╠█▓█╠╫#█░╣╠░#╠▒╠╠        
+*                       #▒╣░╫╠╠#█##██▓▓▓██▓██▓██████▓▓            █░╠╠╠░░░░#╫╠░#▓#╫░#█#╣╫╠##╫╠╫        
+*                        ░░░##╠░###████████████▓▓              ▓█#░░░##██░░█╠╠#█▓█░╫░█#╫╫╫╠╠╠╠╫        
+*                           ▓█▓▓██▓▓▓▓▓              ▓▓███████████████#░░#█▓█╫╫╠█▓▓███##╠╣╫╠╣#         
+*                                                ▓▓██████#██████████#░╠╠█▓█▓▓╠╣╫░█▓███#░░╠╫░░          
+*                         ##                ▓▓███##███████▓▓████▓██#░░░░#▓▓█#░╣░╣╫#███##░╫░░╣          
+*                          #╣░╫╣░╠░░░###████████████▓▓▓▓▓▓██▓▓██#█###░╠░##▓▓#╣░░░░░░░░░░░░╣▒╠          
+*                           ╠╣╣╠╣╠#######████▓▓█████▓▓▓▓███████########█##▓▓█╠░░╣░░░░░░░╣╣╣░#          
+*                            ╠░#╫╣#######██##█▓▓▓██▓▓▓██████###████████##█▓▓▓#╫╣╫╣╫╣╣╫╫╠░░█            
+*                             ░░#╫╫#######████▓▓▓▓████████#█#█▓▓▓▓▓█▓▓███▓▓                            
+*                              ░░░╣░######███#█████████████#█▓▓▓▓▓▓██▓▓▓                               
+*                               ╠#╠╫#######██#█████████████#██▓▓▓▓▓▓▓                                  
+*                                ╠╠░░#####█#███████###████▓▓                                           
+*                                 ╠╠╠╠╠╠╠░░##██##████▓▓▓▓                                              
+*                                   ██##########██▓▓▓▓                                                 
+*/
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
@@ -6,7 +41,6 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -157,13 +191,10 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @param _priceFeedAddresses Array of Chainlink price feed addresses corresponding to each token
      * @param _defaultPriceFeed The default price feed address for native currency (ETH)
      */
-    constructor(
-        string memory _baseSvgImageUri,
-        address[] memory _tokenAddresses,
-        address[] memory _priceFeedAddresses,
-        address _defaultPriceFeed,
-        string memory _defaultSymbol
-    ) ERC721("DeCup", "DCT") Ownable(msg.sender) {
+    constructor(string memory _baseSvgImageUri, address[] memory _tokenAddresses, address[] memory _priceFeedAddresses, address _defaultPriceFeed, string memory _defaultSymbol)
+        ERC721("DeCup", "DCT")
+        Ownable(msg.sender)
+    {
         if (_tokenAddresses.length == 0) {
             revert DeCup__AllowedTokenAddressesMustNotBeEmpty();
         }
@@ -176,8 +207,12 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             revert DeCup__TokenAddressesAndPriceFeedAddressesMusBeSameLength();
         }
 
-        for (uint256 i = 0; i < _tokenAddresses.length; i++) {
+        for (uint256 i; i < _tokenAddresses.length;) {
             s_tokenToPriceFeed[_tokenAddresses[i]] = _priceFeedAddresses[i];
+
+            unchecked {
+                ++i;
+            }
         }
 
         s_tokenCounter = 0;
@@ -263,14 +298,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Requires msg.value to be greater than zero (enforced by moreThanZero modifier)
      * @dev Requires the NFT to exist (enforced by tokenId validation)
      */
-    function addNativeCollateralToExistingCup(uint256 tokenId)
-        external
-        payable
-        isOwner(tokenId)
-        tokenIsNotListedForSale(tokenId)
-        moreThanZero(msg.value)
-        nonReentrant
-    {
+    function addNativeCollateralToExistingCup(uint256 tokenId) external payable isOwner(tokenId) tokenIsNotListedForSale(tokenId) moreThanZero(msg.value) nonReentrant {
         if (s_collateralDeposited[tokenId][address(0)] == 0) {
             s_tokenIdToAssets[tokenId].push(address(0));
         }
@@ -424,14 +452,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      * @dev Only callable by contract owner (manager)
      * @dev Token must be listed for sale
      */
-    function transferAndBurn(uint256 tokenId, address to)
-        public
-        tokenExists(tokenId)
-        isManager
-        tokenIsListedForSale(tokenId)
-        nonReentrant
-        returns (bool)
-    {
+    function transferAndBurn(uint256 tokenId, address to) public tokenExists(tokenId) isManager tokenIsListedForSale(tokenId) nonReentrant returns (bool) {
         delete s_tokenIdIsListedForSale[tokenId];
         emit TransferAndBurn(tokenId);
         _transfer(ownerOf(tokenId), to, tokenId);
@@ -472,6 +493,28 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     function _mintAndIncreaseCounter(address to, uint256 tokenId) private {
         _safeMint(to, tokenId);
         s_tokenCounter++;
+    }
+
+    /**
+     * @notice Minimal uint256 to decimal string converter to avoid heavy imports
+     */
+    function _toString(uint256 value) private pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 
     /**
@@ -617,16 +660,11 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             uint256 amount = s_collateralDeposited[tokenId][tokenAddress];
 
             if (tokenAddress == address(0)) {
-                symbols[i] = string(abi.encodePacked(s_defaultSymbol, " ", Strings.toString(amount)));
+                symbols[i] = string(abi.encodePacked(s_defaultSymbol, " ", _toString(amount)));
             } else {
                 uint256 decimals = IERC20Metadata(tokenAddress).decimals(); // Move declaration here
-                symbols[i] = string(
-                    abi.encodePacked(
-                        IERC20Metadata(tokenAddress).symbol(),
-                        " ",
-                        Strings.toString((amount * PRECISION_18) / (10 ** decimals)) // Use 1e18 instead of 10 ** 18
-                    )
-                );
+                uint256 scaledAmount = (amount * PRECISION_18) / (10 ** decimals);
+                symbols[i] = string(abi.encodePacked(IERC20Metadata(tokenAddress).symbol(), " ", _toString(scaledAmount)));
             }
 
             unchecked {
@@ -696,13 +734,12 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
     function _getTokenIdTCL(uint256 tokenId) internal view returns (uint256) {
         address[] memory assets = s_tokenIdToAssets[tokenId];
         uint256 tcl = 0;
-        uint256 length = assets.length;
-        for (uint256 i; i < length; i++) {
+        for (uint256 i; i < assets.length;) {
             tcl += getAssetValueInUsd(assets[i], s_collateralDeposited[tokenId][assets[i]]);
 
-            // unchecked {
-            //     i++; // Use unchecked increment
-            // }
+            unchecked {
+                ++i; // Use unchecked increment
+            }
         }
         return tcl;
     }
@@ -739,16 +776,15 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
      */
     function tokenURI(uint256 _tokenId) public view override returns (string memory) {
         address[] memory assets = s_tokenIdToAssets[_tokenId];
-        uint256 length = assets.length;
 
         // Pre-calculate TCL and build attributes in single pass
         uint256 tcl;
         bytes memory attributes;
 
         // Cache tokenId string to avoid repeated conversion
-        bytes memory tokenIdStr = bytes(Strings.toString(_tokenId));
+        string memory tokenIdStr = _toString(_tokenId);
 
-        for (uint256 i; i < length;) {
+        for (uint256 i; i < assets.length;) {
             address asset = assets[i]; // Cache asset address
             uint256 amount = s_collateralDeposited[_tokenId][asset];
 
@@ -757,11 +793,10 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
             tcl += usdValue;
 
             // Get symbol once
-            bytes memory symbol = asset == address(0) ? bytes(s_defaultSymbol) : bytes(IERC20Metadata(asset).symbol());
+            string memory symbol = asset == address(0) ? s_defaultSymbol : IERC20Metadata(asset).symbol();
 
             // Build attribute JSON more efficiently
-            attributes =
-                abi.encodePacked(attributes, i > 0 ? bytes(",") : bytes(""), '{"trait_type":"', symbol, '","value":"', Strings.toString(amount), '"}');
+            attributes = abi.encodePacked(attributes, i > 0 ? bytes(",") : bytes(""), '{"trait_type":"', symbol, '","value":"', _toString(amount), '"}');
 
             unchecked {
                 ++i;
@@ -770,7 +805,7 @@ contract DeCup is ERC721, ERC721Burnable, Ownable, ReentrancyGuard {
 
         // Convert TCL to display format
         tcl = tcl / PRECISION_18;
-        bytes memory tclStr = bytes(Strings.toString(tcl));
+        string memory tclStr = _toString(tcl);
 
         // Build complete JSON in single abi.encodePacked call
         return string(

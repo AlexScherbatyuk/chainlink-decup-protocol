@@ -61,15 +61,10 @@ contract CCIPInteractionsTest is Test {
         vm.deal(buyer, STARTING_BALANCE);
 
         ethSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid); // we are currently on Ethereum Sepolia Fork
-        assertEq(
-            ethSepoliaNetworkDetails.chainSelector,
-            16015286601757825753,
-            "Sanity check: Ethereum Sepolia chain selector should be 16015286601757825753"
-        );
+        assertEq(ethSepoliaNetworkDetails.chainSelector, 16015286601757825753, "Sanity check: Ethereum Sepolia chain selector should be 16015286601757825753");
 
         HelperConfigDeCup.NetworkConfig memory ethSepoliaConfigDeCup = helperConfigDeCup.getSepoliaEthConfig();
-        HelperConfigDeCupManager.NetworkConfig memory ethSepoliaConfigDeCupManager =
-            helperConfigDeCupManager.getSepoliaEthConfig();
+        HelperConfigDeCupManager.NetworkConfig memory ethSepoliaConfigDeCupManager = helperConfigDeCupManager.getSepoliaEthConfig();
 
         ethSepoliaDeCup = new DeCup(
             ethSepoliaConfigDeCup.imageURI,
@@ -99,15 +94,10 @@ contract CCIPInteractionsTest is Test {
         vm.deal(buyer, STARTING_BALANCE);
 
         avlFujiNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid); // we are currently on Avalanche Fuji Fork
-        assertEq(
-            avlFujiNetworkDetails.chainSelector,
-            14767482510784806043,
-            "Sanity check: Avalanche Fuji chain selector should be 14767482510784806043"
-        );
+        assertEq(avlFujiNetworkDetails.chainSelector, 14767482510784806043, "Sanity check: Avalanche Fuji chain selector should be 14767482510784806043");
 
         HelperConfigDeCup.NetworkConfig memory avlFujiConfigDeCup = helperConfigDeCup.getFujiAvlConfig();
-        HelperConfigDeCupManager.NetworkConfig memory avlFujiConfigDeCupManager =
-            helperConfigDeCupManager.getFujiAvlConfig();
+        HelperConfigDeCupManager.NetworkConfig memory avlFujiConfigDeCupManager = helperConfigDeCupManager.getFujiAvlConfig();
 
         avlFujiDeCup = new DeCup(
             avlFujiConfigDeCup.imageURI,
