@@ -47,7 +47,7 @@ import {CCIPReceiver} from "@chainlink/contracts/src/v0.8/ccip/applications/CCIP
 
 /**
  * @title Decentralized Cup Manager (DeCupManager)
- * @author Alexander Scherbatyuk
+ * @author Alexander Scherbatyuk (https://x.com/AlexScherbatyuk)
  * @notice Manages the sale and purchase of DeCup NFTs with USD-denominated pricing
  * @dev This contract acts as a marketplace for DeCup NFTs, handling order creation, cancellation, and execution
  * @dev Uses a simple price feed mechanism and charges a manager fee in USD converted to ETH
@@ -342,10 +342,14 @@ contract DeCupManager is Ownable, CCIPReceiver, ReentrancyGuard {
 
         Client.EVM2AnyMessage memory message = Client.EVM2AnyMessage({
             receiver: abi.encode(s_chainIdToReceiverAddress[destinationChainId]), //destination chain receiver address
-            //abi.encodeWithSignature("_createSale(uint256,address,uint256)", tokenId, beneficiaryAddress, chainId),
             data: abi.encode(messageData),
             tokenAmounts: new Client.EVMTokenAmount[](0),
-            extraArgs: "",
+            extraArgs: Client._argsToBytes(
+                Client.EVMExtraArgsV2({
+                    gasLimit: 200_000, // Gas limit for the callback on the destination chain
+                    allowOutOfOrderExecution: true // Allows the message to be executed out of order relative to other messages from the same sender
+                })
+            ),
             feeToken: s_payFeesIn == PayFeesIn.LINK ? linkAddress : address(0)
         });
 

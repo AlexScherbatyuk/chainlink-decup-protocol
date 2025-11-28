@@ -46,7 +46,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title Decentralized Cup of assets (DeCup)
- * @author Alexander Scherbatyuk
+ * @author Alexander Scherbatyuk (https://github.com/AlexScherbatyuk)
  * @notice Collaterized NFT (Cup of Assets) to be sold cross-chain as single NFT. Contract receives native currency and
  * a pre-defined number of ERC20 tokens as collateral.
  * @dev This contract utilizes:
